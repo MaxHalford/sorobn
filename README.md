@@ -4,7 +4,7 @@ This is an unambitious implementation of Bayesian networks in Python. For seriou
 
 ## Installation
 
-```python
+```sh
 > pip install git+https://github.com/MaxHalford/rev --upgrade
 ```
 
