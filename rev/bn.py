@@ -111,6 +111,12 @@ class BayesNet:
     def _rejection_sampling(self, *query, event, n):
         """Answer a query using rejection sampling.
 
+        This is probably the easiest approximate inference method to understand. The idea is simply
+        to produce a random sample and keep if it satisfies the specified event. The sample is
+        rejected if any part of the event is not consistent with the sample. The downside of this
+        method is that it can potentially reject many samples, and therefore requires a large `n`
+        in order to produce reliable estimates.
+
         """
 
         # We don't know many samples we won't reject, therefore we cannot preallocate arrays
@@ -126,13 +132,15 @@ class BayesNet:
             for var in query:
                 samples[var].append(sample[var])
 
+        # Aggregate and normalize the obtained samples
         samples = pd.DataFrame(samples)
         return samples.groupby(list(query)).size() / len(samples)
 
     def _llh_weighting(self, *query, event, n):
         """Answers a query using likelihood weighting.
 
-        Likelihood weighting is a particular instance of importance sampling.
+        Likelihood weighting is a particular instance of importance sampling. The idea is to
+        produce random samples, and weight each sample according to it's likelihood.
 
         """
 
@@ -163,39 +171,55 @@ class BayesNet:
     def _gibbs_sampling(self, *query, event, n):
         """Gibbs sampling.
 
+        The mathematical details of why this works is quite involved, but the idea is quite simple.
+        We start with a random sample where the event variables are specified. Every iteration,
+        we pick a random variable that is not part of the event variables, and sample it randomly.
+        The sampling is conditionned on the current state of the sample, which requires computing
+        the conditional distribution of each variable with respect to it's Markov blanket. Every
+        time a random value is sampled, we update the current state and record it.
+
         """
 
         # We start by computing the conditional distributions for each node that is not part of
         # the event. Each relevant node is therefore conditioned on its Markov blanket. Refer to
         # equation 14.12 of Artificial Intelligence: A Modern Approach for more detail.
         posteriors = {}
+        blankets = {}
         nonevents = self.nodes - set(event)
         for node in nonevents:
             posterior = self.cpts[node]
             for child in self.children.get(node, ()):
                 posterior = posterior * self.cpts[child]  # in-place mul doesn't work
-            by = posterior.index.names[:-1]
-            posterior = posterior.groupby(by).apply(lambda g: g / g.sum())
+            blanket = list(posterior.index.names)  # Markov blanket
+            blanket.remove(node)
+            posterior = posterior.groupby(blanket).apply(lambda g: g / g.sum())
+            posterior = posterior.reorder_levels([*blanket, node])
             posteriors[node] = posterior
+            blankets[node] = blanket
 
-        # Initialize a sample
-        sample = self._sample(init=event)
+        # Start with a random sample
+        state = self._sample(init=event)
 
         samples = {var: [None] * n for var in query}
         queue = itertools.cycle(nonevents)  # arbitrary order
 
         for i in range(n):
+            # Go to the next variable
             var = next(queue)
+
+            # Sample from P(var | blanket(var))
             cpt = posteriors[var]
-            condition = tuple(sample[p] for p in posteriors[var].index.names[:-1])
+            condition = tuple(state[node] for node in blankets[var])
             if condition:
                 cpt = cpt.loc[condition]
             val = cpt.cpt.sample()
-            sample[var] = val
+            state[var] = val
 
+            # Record the current state
             for var in query:
-                samples[var][i] = sample[var]
+                samples[var][i] = state[var]
 
+        # Aggregate and normalize the obtained samples
         samples = pd.DataFrame(samples)
         return samples.groupby(list(query)).size() / len(samples)
 
@@ -206,8 +230,11 @@ class BayesNet:
         elif algorithm == 'rejection':
             answer = self._rejection_sampling(*query, event=event, n=n)
 
+        elif algorithm == 'gibbs':
+            answer = self._gibbs_sampling(*query, event=event, n=n)
+
         else:
-            raise ValueError('Unknown algorithm, must be one of: likelihood, rejection')
+            raise ValueError('Unknown algorithm, must be one of: likelihood, rejection, gibbs')
 
         return answer.rename(f'P({",".join(query)})')
 
