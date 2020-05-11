@@ -2,8 +2,7 @@ import collections
 import itertools
 
 import pandas as pd
-
-from rev import dist
+import vose
 
 
 __all__ = ['BayesNet']
@@ -11,12 +10,22 @@ __all__ = ['BayesNet']
 
 @pd.api.extensions.register_series_accessor('cpt')
 class CPTAccessor:
+    """
+
+    Adds utilities to a pandas.Series to help manipulate it as a conditional probability
+    table (CPT).
+
+    """
 
     def __init__(self, pandas_series):
         self._series = pandas_series
+        self.sampler = None
 
     def sample(self):
-        return self._series.sample(weights=self._series).index[0]
+        if self.sampler is None:
+            self.sampler = vose.Sampler(weights=self._series.to_numpy())
+        idx = self.sampler.sample()
+        return self._series.index[idx]
 
 
 class BayesNet:
@@ -64,7 +73,7 @@ class BayesNet:
                 cpt = self.cpts[node]
                 if node in self.parents:
                     condition = tuple(sample[parent] for parent in self.parents[node])
-                    cpt = cpt.loc[condition]
+                    cpt = cpt[condition]
                 sample[node] = cpt.cpt.sample()
 
         sample = init.copy() if init else {}
@@ -155,13 +164,20 @@ class BayesNet:
             # Compute the likelihood of this sample
             weight = 1.
             for var, val in event.items():
-                condition = tuple(sample[p] for p in self.parents.get(var, ()))
-                weight *= self.cpts[var].loc[condition].get(val, 0)
+                cpt = self.cpts[var]
+                if var in self.parents:
+                    condition = tuple(sample[p] for p in self.parents[var])
+                    cpt = cpt[condition]
+                weight *= cpt.get(val, 0)
+
+                if weight == 0:
+                    break
 
             for var in query:
                 samples[var][i] = sample[var]
                 weights[i] = weight
 
+        # Now we aggregate the resulting samples according to their associated likelihoods
         results = pd.DataFrame({'weight': weights, **samples})
         results = results.groupby(list(query))['weight'].mean()
         results /= results.sum()
@@ -189,7 +205,7 @@ class BayesNet:
         for node in nonevents:
             posterior = self.cpts[node]
             for child in self.children.get(node, ()):
-                posterior = posterior * self.cpts[child]  # in-place mul doesn't work
+                posterior = posterior * self.cpts[child]  # in-place mul doesn't work correctly
             blanket = list(posterior.index.names)  # Markov blanket
             blanket.remove(node)
             posterior = posterior.groupby(blanket).apply(lambda g: g / g.sum())
@@ -201,17 +217,17 @@ class BayesNet:
         state = self._sample(init=event)
 
         samples = {var: [None] * n for var in query}
-        queue = itertools.cycle(nonevents)  # arbitrary order
+        cycle = itertools.cycle(nonevents)  # arbitrary order
 
         for i in range(n):
             # Go to the next variable
-            var = next(queue)
+            var = next(cycle)
 
             # Sample from P(var | blanket(var))
             cpt = posteriors[var]
             condition = tuple(state[node] for node in blankets[var])
             if condition:
-                cpt = cpt.loc[condition]
+                cpt = cpt[condition]
             val = cpt.cpt.sample()
             state[var] = val
 
