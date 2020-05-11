@@ -1,4 +1,5 @@
 import collections
+import itertools
 
 import pandas as pd
 
@@ -8,23 +9,34 @@ from rev import dist
 __all__ = ['BayesNet']
 
 
+@pd.api.extensions.register_series_accessor('cpt')
+class CPTAccessor:
+
+    def __init__(self, pandas_series):
+        self._series = pandas_series
+
+    def sample(self):
+        return self._series.sample(weights=self._series).index[0]
+
+
 class BayesNet:
     """Bayesian network.
 
     """
 
     def __init__(self, *edges):
+
+        # Convert edges into children and parent connections
         parents = collections.defaultdict(list)
         children = collections.defaultdict(list)
-
         for parent, child in set(edges):
             parents[child].append(parent)
-            children[parent].append(parent)
-
+            children[parent].append(child)
         self.parents = dict(parents)
         self.children = dict(children)
+
         self.nodes = {*parents.keys(), *children.keys()}
-        self.dists = {}
+        self.cpts = {}
 
     def _sample(self, init=None):
         """
@@ -49,9 +61,11 @@ class BayesNet:
                 sample_node_value(node=parent, sample=sample, visited=visited)
 
             if node not in sample:
-                condition = tuple(sample[parent] for parent in self.parents.get(node, ()))
-                dist = self.dists[node][condition]
-                sample[node] = dist.sample()
+                cpt = self.cpts[node]
+                if node in self.parents:
+                    condition = tuple(sample[parent] for parent in self.parents[node])
+                    cpt = cpt.loc[condition]
+                sample[node] = cpt.cpt.sample()
 
         sample = init.copy() if init else {}
         visited = set()
@@ -61,7 +75,7 @@ class BayesNet:
 
         return sample
 
-    def sample(self):
+    def sample(self, n=1):
         """Generate a new sample at random by using forward sampling.
 
         Although the idea is to implement forward sampling, the implementation
@@ -69,7 +83,13 @@ class BayesNet:
         check that values have been sampled for each parent node. Once a value has been chosen for
         each parent, we can pick the according distribution and sample from it.
 
+        Parameters:
+            n: Number of samples to produce. A dataframe is returned if `n > 1`. A dictionary is
+                returned if `n <= 1`.
+
         """
+        if n > 1:
+            return pd.DataFrame(self._sample() for _ in range(n))
         return self._sample()
 
     def fit(self, X: pd.DataFrame):
@@ -77,39 +97,23 @@ class BayesNet:
 
         # Compute conditional distribution for each child
         for child, parents in self.parents.items():
+            self.cpts[child] = X.groupby(parents)[child].value_counts(normalize=True)
+            self.cpts[child].name = f'P({child} | {", ".join(parents)})'
 
-            self.dists[child] = {}
-
-            # Determine what kind of distribution to use
-            dist = dist.Multinomial
-            if X[child].dtype == bool:
-                dist = dist.Bernoulli
-
-            for condition, group in X.groupby(parents):
-                condition = condition if isinstance(condition, tuple) else (condition,)
-                self.dists[child][condition] = dist(None).fit(samples=X[child])
-
-        # Compute distribution for each orphan
+        # Compute distribution for each orphan (i.e. the roots)
         for orphan in self.nodes - set(self.parents):
-
-            # Determine what kind of distribution to use
-            dist = dist.Multinomial
-            if X[child].dtype == bool:
-                dist = dist.Bernoulli
-
-            self.dists[orphan] = {(): dist(None).fit(samples=X[orphan])}
+            self.cpts[orphan] = X[orphan].value_counts(normalize=True)
+            self.cpts[orphan].index.name = orphan
+            self.cpts[orphan].name = f'P({orphan})'
 
         return self
 
-    def _get_dist(self, var):
-        return next(iter(self.dists[var].values())).__class__
-
-    def _rejection_sampling(self, *query, event, n=100):
+    def _rejection_sampling(self, *query, event, n):
         """Answer a query using rejection sampling.
 
         """
 
-        # We will store the outcomes for each query variable in lists
+        # We don't know many samples we won't reject, therefore we cannot preallocate arrays
         samples = {var: [] for var in query}
 
         for _ in range(n):
@@ -122,12 +126,10 @@ class BayesNet:
             for var in query:
                 samples[var].append(sample[var])
 
-        return {
-            var: self._get_dist(var)(None).fit(samples=samples[var])
-            for var in query
-        }
+        samples = pd.DataFrame(samples)
+        return samples.groupby(list(query)).size() / len(samples)
 
-    def _llh_weighting(self, *query, n=100, event):
+    def _llh_weighting(self, *query, event, n):
         """Answers a query using likelihood weighting.
 
         Likelihood weighting is a particular instance of importance sampling.
@@ -135,7 +137,7 @@ class BayesNet:
         """
 
         samples = {var: [None] * n for var in query}
-        weights = {var: [None] * n for var in query}
+        weights = [None] * n
 
         for i in range(n):
 
@@ -145,26 +147,69 @@ class BayesNet:
             # Compute the likelihood of this sample
             weight = 1.
             for var, val in event.items():
-                condition = tuple(sample[parent] for parent in self.parents.get(var, ()))
-                weight *= self.dists[var][condition].P(val)
+                condition = tuple(sample[p] for p in self.parents.get(var, ()))
+                weight *= self.cpts[var].loc[condition].get(val, 0)
 
             for var in query:
                 samples[var][i] = sample[var]
-                weights[var][i] = weight
+                weights[i] = weight
 
-        return {
-            var: self._get_dist(var)(None).fit(samples=samples[var], weights=weights[var])
-            for var in query
-        }
+        results = pd.DataFrame({'weight': weights, **samples})
+        results = results.groupby(list(query))['weight'].mean()
+        results /= results.sum()
+
+        return results
+
+    def _gibbs_sampling(self, *query, event, n):
+        """Gibbs sampling.
+
+        """
+
+        # We start by computing the conditional distributions for each node that is not part of
+        # the event. Each relevant node is therefore conditioned on its Markov blanket. Refer to
+        # equation 14.12 of Artificial Intelligence: A Modern Approach for more detail.
+        posteriors = {}
+        nonevents = self.nodes - set(event)
+        for node in nonevents:
+            posterior = self.cpts[node]
+            for child in self.children.get(node, ()):
+                posterior = posterior * self.cpts[child]  # in-place mul doesn't work
+            by = posterior.index.names[:-1]
+            posterior = posterior.groupby(by).apply(lambda g: g / g.sum())
+            posteriors[node] = posterior
+
+        # Initialize a sample
+        sample = self._sample(init=event)
+
+        samples = {var: [None] * n for var in query}
+        queue = itertools.cycle(nonevents)  # arbitrary order
+
+        for i in range(n):
+            var = next(queue)
+            cpt = posteriors[var]
+            condition = tuple(sample[p] for p in posteriors[var].index.names[:-1])
+            if condition:
+                cpt = cpt.loc[condition]
+            val = cpt.cpt.sample()
+            sample[var] = val
+
+            for var in query:
+                samples[var][i] = sample[var]
+
+        samples = pd.DataFrame(samples)
+        return samples.groupby(list(query)).size() / len(samples)
 
     def query(self, *query, event, algorithm='rejection', n=100):
         if algorithm == 'likelihood':
-            return self._llh_weighting(*query, event=event, n=n)
+            answer = self._llh_weighting(*query, event=event, n=n)
 
         elif algorithm == 'rejection':
-            return self._rejection_sampling(*query, event=event, n=n)
+            answer = self._rejection_sampling(*query, event=event, n=n)
 
-        raise ValueError('Unknown algorithm, must be one of: likelihood, rejection')
+        else:
+            raise ValueError('Unknown algorithm, must be one of: likelihood, rejection')
+
+        return answer.rename(f'P({",".join(query)})')
 
 
     def impute(self, sample):
