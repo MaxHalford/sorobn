@@ -1,6 +1,8 @@
 import collections
+import functools
 import itertools
 
+import numpy as np
 import pandas as pd
 import vose
 
@@ -26,6 +28,10 @@ class CPTAccessor:
             self.sampler = vose.Sampler(weights=self._series.to_numpy())
         idx = self.sampler.sample()
         return self._series.index[idx]
+
+    @functools.lru_cache(maxsize=256)
+    def __getitem__(self, idx):
+        return self._series[idx]
 
 
 class BayesNet:
@@ -73,7 +79,7 @@ class BayesNet:
                 cpt = self.cpts[node]
                 if node in self.parents:
                     condition = tuple(sample[parent] for parent in self.parents[node])
-                    cpt = cpt[condition]
+                    cpt = cpt.cpt[condition]
                 sample[node] = cpt.cpt.sample()
 
         sample = init.copy() if init else {}
@@ -108,12 +114,14 @@ class BayesNet:
         for child, parents in self.parents.items():
             self.cpts[child] = X.groupby(parents)[child].value_counts(normalize=True)
             self.cpts[child].name = f'P({child} | {", ".join(parents)})'
+            self.cpts[child] = self.cpts[child].sort_index()
 
         # Compute distribution for each orphan (i.e. the roots)
         for orphan in self.nodes - set(self.parents):
             self.cpts[orphan] = X[orphan].value_counts(normalize=True)
             self.cpts[orphan].index.name = orphan
             self.cpts[orphan].name = f'P({orphan})'
+            self.cpts[orphan] = self.cpts[orphan].sort_index()
 
         return self
 
@@ -167,7 +175,7 @@ class BayesNet:
                 cpt = self.cpts[var]
                 if var in self.parents:
                     condition = tuple(sample[p] for p in self.parents[var])
-                    cpt = cpt[condition]
+                    cpt = cpt.cpt[condition]
                 weight *= cpt.get(val, 0)
 
                 if weight == 0:
@@ -203,21 +211,32 @@ class BayesNet:
         blankets = {}
         nonevents = self.nodes - set(event)
         for node in nonevents:
-            posterior = self.cpts[node]
+            post = self.cpts[node]
+
             for child in self.children.get(node, ()):
-                posterior = posterior * self.cpts[child]  # in-place mul doesn't work correctly
-            blanket = list(posterior.index.names)  # Markov blanket
+
+                # The following block merges the current CPT with another CPT
+                cpt = self.cpts[child]
+                c, l_idx, r_idx, = post.index.join(cpt.index, how='inner', return_indexers=True)
+                if l_idx is None:
+                    l_idx = np.arange(len(post))
+                if r_idx is None:
+                    r_idx = np.arange(len(cpt))
+                post = pd.Series(post.iloc[l_idx].values * cpt.iloc[r_idx].values, index=c)
+
+            blanket = list(post.index.names)  # Markov blanket
             blanket.remove(node)
-            posterior = posterior.groupby(blanket).apply(lambda g: g / g.sum())
-            posterior = posterior.reorder_levels([*blanket, node])
-            posteriors[node] = posterior
+            post = post.groupby(blanket).apply(lambda g: g / g.sum())
+            post = post.reorder_levels([*blanket, node])
+            post = post.sort_index()
+            posteriors[node] = post
             blankets[node] = blanket
 
         # Start with a random sample
         state = self._sample(init=event)
 
         samples = {var: [None] * n for var in query}
-        cycle = itertools.cycle(nonevents)  # arbitrary order
+        cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
 
         for i in range(n):
             # Go to the next variable
@@ -227,7 +246,7 @@ class BayesNet:
             cpt = posteriors[var]
             condition = tuple(state[node] for node in blankets[var])
             if condition:
-                cpt = cpt[condition]
+                cpt = cpt.cpt[condition]
             val = cpt.cpt.sample()
             state[var] = val
 
