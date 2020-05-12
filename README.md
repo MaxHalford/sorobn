@@ -5,19 +5,19 @@ This is an unambitious implementation of Bayesian networks in Python. For seriou
 ## Installation
 
 ```sh
-> pip install git+https://github.com/MaxHalford/rev --upgrade
+$ pip install git+https://github.com/MaxHalford/hedgehog --upgrade
 ```
 
 ## Usage
 
 ### Manual definition
 
-As an example, let's use Judea Pearl's famous alarm network. The edges of the network can be provided manually when initialising a `BayesNet`:
+As an example, let's use Judea Pearl's famous alarm network. The central construct in `hedgehog` is the `BayesNet` class. The edges of the network can be provided manually when initialising a `BayesNet`:
 
 ```python
->>> import rev
+>>> import hedgehog as hh
 
->>> bn = rev.BayesNet(
+>>> bn = hh.BayesNet(
 ...     ('Burglary', 'Alarm'),
 ...     ('Earthquake', 'Alarm'),
 ...     ('Alarm', 'John calls'),
@@ -26,7 +26,7 @@ As an example, let's use Judea Pearl's famous alarm network. The edges of the ne
 
 ```
 
-In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table). We can set these manually by accessing the `cpts` attribute:
+In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table) are given. We can set these manually by accessing the `cpts` attribute:
 
 ```python
 >>> import pandas as pd
@@ -70,7 +70,7 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 
 ```
 
-Once you've defined the network and specified the conditional probability tables, the `prepare` has to be called.
+The `prepare` method has to be called whenever the structure and/or the CPTs are manually specified. This will do some house-keeping and make sure everything is sound. Just like washing your hands, it is highly recommended but not compulsory.
 
 ```python
 >>> bn.prepare()
@@ -79,7 +79,7 @@ Once you've defined the network and specified the conditional probability tables
 
 ### Probabilistic inference
 
-A Bayesian network is a generative model, and therefore can be used for many purposes. First of all, we can answer probabilistic queries, such as *what is the likelihood of there being a burglary if both John and Mary call?*. This can done via the `query` method, which returns the probability distribution of the possible outcomes.
+A Bayesian network is a generative model, and therefore can be used for many purposes. First of all, it can answer probabilistic queries, such as *what is the likelihood of there being a burglary if both John and Mary call?*. This can done via the `query` method, which returns the probability distribution of the possible outcomes.
 
 ```python
 >>> bn.query('Burglary', event={'Mary calls': True, 'John calls': True})
@@ -90,13 +90,18 @@ Name: P(Burglary), dtype: float64
 
 ```
 
-By default, the answer is found via an exact inference method. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an approximate answer. The latter is usually similar to the exact answer, provided enough iterations are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
+By default, the answer is found via an exact inference method. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an approximate answer. The quality of the approximation increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
 
 ```python
 >>> import numpy as np
 >>> np.random.seed(42)
 
->>> bn.query('Burglary', event={'Mary calls': True, 'John calls': True}, algorithm='gibbs', n=1000)
+>>> bn.query(
+...     'Burglary',
+...     event={'Mary calls': True, 'John calls': True},
+...     algorithm='gibbs',
+...     n_iterations=1000
+... )
 Burglary
 False    0.73
 True     0.27
@@ -106,7 +111,7 @@ Name: P(Burglary), dtype: float64
 
 ### Missing value imputation
 
-A usecase for probabilistic inference is to impute missing values. This `impute` method replaces the missing values with the most likely replacements given the present information. This is more sophisticated and possibly more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
+A usecase for probabilistic inference is to impute missing values. The `impute` method replaces the missing values with the most likely replacements given the present information. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
 
 ```python
 >>> from pprint import pprint
@@ -143,20 +148,13 @@ You can use a Bayesian network to generate random samples. The samples will foll
  'John calls': False,
  'Mary calls': False}
 
->>> bn.sample(12)
+>>> bn.sample(5)
     Alarm  Burglary  Earthquake  John calls  Mary calls
 0   False     False       False       False       False
 1   False     False       False       False       False
 2   False     False       False       False       False
 3   False     False       False        True       False
 4   False     False       False       False       False
-5   False     False       False       False       False
-6   False     False       False       False       False
-7   False     False       False       False       False
-8   False     False       False       False       False
-9   False     False       False       False       False
-10  False     False       False       False       False
-11  False     False       False       False       False
 
 ```
 

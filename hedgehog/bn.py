@@ -209,7 +209,10 @@ class BayesNet:
         self.cpts = {}
 
     def prepare(self):
-        """Performs optional optimisations.
+        """Perform house-keeping.
+
+        It is highly recommended to call this method whenever the structure and/or the parameters
+        of the Bayesian network are set manually.
 
         """
 
@@ -293,7 +296,7 @@ class BayesNet:
 
         return self
 
-    def _rejection_sampling(self, *query, event, n):
+    def _rejection_sampling(self, *query, event, n_iterations):
         """Answer a query using rejection sampling.
 
         This is probably the easiest approximate inference method to understand. The idea is simply
@@ -307,7 +310,7 @@ class BayesNet:
         # We don't know many samples we won't reject, therefore we cannot preallocate arrays
         samples = {var: [] for var in query}
 
-        for _ in range(n):
+        for _ in range(n_iterations):
             sample = self.sample()
 
             # Reject if the sample is not consistent with the specified events
@@ -321,7 +324,7 @@ class BayesNet:
         samples = pd.DataFrame(samples)
         return samples.groupby(list(query)).size() / len(samples)
 
-    def _llh_weighting(self, *query, event, n):
+    def _llh_weighting(self, *query, event, n_iterations):
         """Answers a query using likelihood weighting.
 
         Likelihood weighting is a particular instance of importance sampling. The idea is to
@@ -329,10 +332,10 @@ class BayesNet:
 
         """
 
-        samples = {var: [None] * n for var in query}
-        weights = [None] * n
+        samples = {var: [None] * n_iterations for var in query}
+        weights = [None] * n_iterations
 
-        for i in range(n):
+        for i in range(n_iterations):
 
             # Sample by using the events as fixed values
             sample = self._sample(init=event)
@@ -360,7 +363,7 @@ class BayesNet:
 
         return results
 
-    def _gibbs_sampling(self, *query, event, n):
+    def _gibbs_sampling(self, *query, event, n_iterations):
         """Gibbs sampling.
 
         The mathematical details of why this works is quite involved, but the idea is quite simple.
@@ -395,10 +398,10 @@ class BayesNet:
         # Start with a random sample
         state = self._sample(init=event)
 
-        samples = {var: [None] * n for var in query}
+        samples = {var: [None] * n_iterations for var in query}
         cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
 
-        for i in range(n):
+        for i in range(n_iterations):
             # Go to the next variable
             var = next(cycle)
 
@@ -469,7 +472,7 @@ class BayesNet:
             return set(parents) | set.union(*[self.ancestors(p) for p in parents])
         return set()
 
-    def query(self, *query, event, algorithm='exact', n=100):
+    def query(self, *query, event, algorithm='exact', n_iterations=100):
         """Answer a probabilistic query.
 
         Exact inference is performed by default. However, this might be too slow depending on the
@@ -481,7 +484,8 @@ class BayesNet:
             query: The variables for which the posterior distribution is inferred.
             event: A
             algorithm: Inference method to use.
-            n: Number of iterations to perform when using approximate inference method.
+            n_iterations: Number of iterations to perform when using an approximate inference
+                method.
 
         """
 
@@ -489,13 +493,13 @@ class BayesNet:
             answer = self._variable_elimination(*query, event=event)
 
         elif algorithm == 'gibbs':
-            answer = self._gibbs_sampling(*query, event=event, n=n)
+            answer = self._gibbs_sampling(*query, event=event, n_iterations=n_iterations)
 
         elif algorithm == 'likelihood':
-            answer = self._llh_weighting(*query, event=event, n=n)
+            answer = self._llh_weighting(*query, event=event, n_iterations=n_iterations)
 
         elif algorithm == 'rejection':
-            answer = self._rejection_sampling(*query, event=event, n=n)
+            answer = self._rejection_sampling(*query, event=event, n_iterations=n_iterations)
 
         else:
             raise ValueError('Unknown algorithm, must be one of: exact, gibbs, likelihood, ' +
@@ -516,7 +520,7 @@ class BayesNet:
 
         """
 
-        # Determine which variables are missing and which are not
+        # Determine which variables are missing and which ones are not
         missing = []
         event = sample.copy()
         for k, v in sample.items():

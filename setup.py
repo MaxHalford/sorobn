@@ -8,7 +8,7 @@ def read(fname):
 
 
 setup(
-    name='rev',
+    name='hedgehog',
     version='0.0.1',
     author='Max Halford',
     license='MIT',
@@ -16,8 +16,8 @@ setup(
     description='Bayesian networks in Python',
     long_description=read('README.md'),
     long_description_content_type='text/markdown',
-    url='https://github.com/MaxHalford/rev',
-    packages=['rev'],
+    url='https://github.com/MaxHalford/hedgehog',
+    packages=['hedgehog'],
     install_requires=[
         'pandas',
         'vose @ git+https://github.com/MaxHalford/vose'
