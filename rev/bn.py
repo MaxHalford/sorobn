@@ -1,6 +1,7 @@
 import collections
 import functools
 import itertools
+import random
 
 import numpy as np
 import pandas as pd
@@ -25,13 +26,167 @@ class CPTAccessor:
 
     def sample(self):
         if self.sampler is None:
-            self.sampler = vose.Sampler(weights=self._series.to_numpy())
+            self.sampler = vose.Sampler(
+                weights=self._series.to_numpy(),
+                seed=np.random.randint(2 ** 16)
+            )
         idx = self.sampler.sample()
         return self._series.index[idx]
 
     @functools.lru_cache(maxsize=256)
     def __getitem__(self, idx):
+        """Cached row accessor.
+
+        Accessing a row of pandas.Series is very inefficient. This method caches the row accesses
+        and therefore circumvents the issue.
+
+        """
         return self._series[idx]
+
+
+def pointwise_mul(left, right):
+    """Pointwise multiplication of two series.
+
+    Examples:
+
+        Example taken from figure 14.10 of Artificial Intelligence: A Modern Approach.
+
+        >>> a = pd.Series({
+        ...     ('T', 'T'): .3,
+        ...     ('T', 'F'): .7,
+        ...     ('F', 'T'): .9,
+        ...     ('F', 'F'): .1
+        ... })
+        >>> a.index.names = ['A', 'B']
+
+        >>> b = pd.Series({
+        ...     ('T', 'T'): .2,
+        ...     ('T', 'F'): .8,
+        ...     ('F', 'T'): .6,
+        ...     ('F', 'F'): .4
+        ... })
+        >>> b.index.names = ['B', 'C']
+
+        >>> pointwise_mul(a, b)
+        B  A  C
+        F  T  T    0.42
+              F    0.28
+           F  T    0.06
+              F    0.04
+        T  T  T    0.06
+              F    0.24
+           F  T    0.18
+              F    0.72
+        dtype: float64
+
+        This method returns the Cartesion product in case two don't share any part of their index
+        in common.
+
+        >>> a = pd.Series({
+        ...     ('T', 'T'): .3,
+        ...     ('T', 'F'): .7,
+        ...     ('F', 'T'): .9,
+        ...     ('F', 'F'): .1
+        ... })
+        >>> a.index.names = ['A', 'B']
+
+        >>> b = pd.Series({
+        ...     ('T', 'T'): .2,
+        ...     ('T', 'F'): .8,
+        ...     ('F', 'T'): .6,
+        ...     ('F', 'F'): .4
+        ... })
+        >>> b.index.names = ['C', 'D']
+
+        >>> pointwise_mul(a, b)
+        A  B  C  D
+        T  T  F  F    0.12
+                 T    0.18
+              T  F    0.24
+                 T    0.06
+           F  F  F    0.28
+                 T    0.42
+              T  F    0.56
+                 T    0.14
+        F  T  F  F    0.36
+                 T    0.54
+              T  F    0.72
+                 T    0.18
+           F  F  F    0.04
+                 T    0.06
+              T  F    0.08
+                 T    0.02
+        dtype: float64
+
+        Here is an example where both series have a one-dimensional index:
+
+        >>> a = pd.Series({
+        ...     'T': .3,
+        ...     'F': .7
+        ... })
+        >>> a.index.names = ['A']
+
+        >>> b = pd.Series({
+        ...     'T': .2,
+        ...     'F': .8
+        ... })
+        >>> b.index.names = ['B']
+
+        >>> pointwise_mul(a, b)
+        A  B
+        T  T    0.06
+           F    0.24
+        F  T    0.14
+           F    0.56
+        dtype: float64
+
+        Finally, here is an example when only one of the series has a MultiIndex.
+
+        >>> a = pd.Series({
+        ...     'T': .3,
+        ...     'F': .7
+        ... })
+        >>> a.index.names = ['A']
+
+        >>> b = pd.Series({
+        ...     ('T', 'T'): .2,
+        ...     ('T', 'F'): .8,
+        ...     ('F', 'T'): .6,
+        ...     ('F', 'F'): .4
+        ... })
+        >>> b.index.names = ['B', 'C']
+
+        >>> pointwise_mul(a, b)
+        A  B  C
+        T  F  F    0.12
+              T    0.18
+           T  F    0.24
+              T    0.06
+        F  F  F    0.28
+              T    0.42
+           T  F    0.56
+              T    0.14
+        dtype: float64
+
+    """
+
+    # Return the Cartesion product if the index names have nothing in common with each other
+    if not set(left.index.names) & set(right.index.names):
+        cart = pd.DataFrame(np.outer(left, right), index=left.index, columns=right.index)
+        return cart.stack(list(range(cart.columns.nlevels)))
+
+    index, l_idx, r_idx, = left.index.join(right.index, how='inner', return_indexers=True)
+    if l_idx is None:
+        l_idx = np.arange(len(left))
+    if r_idx is None:
+        r_idx = np.arange(len(right))
+    return pd.Series(left.iloc[l_idx].values * right.iloc[r_idx].values, index=index)
+
+
+def sum_out(cdt, var):
+    nodes = list(cdt.index.names)
+    nodes.remove(var)
+    return cdt.groupby(nodes).sum()
 
 
 class BayesNet:
@@ -44,14 +199,26 @@ class BayesNet:
         # Convert edges into children and parent connections
         parents = collections.defaultdict(list)
         children = collections.defaultdict(list)
-        for parent, child in set(edges):
+        for parent, child in collections.OrderedDict.fromkeys(edges):  # remove duplicates
             parents[child].append(parent)
             children[parent].append(child)
         self.parents = dict(parents)
         self.children = dict(children)
 
-        self.nodes = {*parents.keys(), *children.keys()}
+        self.nodes = sorted({*parents.keys(), *children.keys()})
         self.cpts = {}
+
+    def prepare(self):
+        """Performs optional optimisations.
+
+        """
+
+        for node, cpt in self.cpts.items():
+            cpt.sort_index(inplace=True)
+            cpt.index.rename(
+                [*self.parents[node], node] if node in self.parents else node,
+                inplace=True
+            )
 
     def _sample(self, init=None):
         """
@@ -85,8 +252,9 @@ class BayesNet:
         sample = init.copy() if init else {}
         visited = set()
 
-        for leaf in self.nodes - set(self.children):
-            sample_node_value(node=leaf, sample=sample, visited=visited)
+        for node in self.nodes:
+            if node not in self.children:  # is a leaf
+                sample_node_value(node=node, sample=sample, visited=visited)
 
         return sample
 
@@ -104,7 +272,7 @@ class BayesNet:
 
         """
         if n > 1:
-            return pd.DataFrame(self._sample() for _ in range(n))
+            return pd.DataFrame(self._sample() for _ in range(n)).sort_index(axis='columns')
         return self._sample()
 
     def fit(self, X: pd.DataFrame):
@@ -209,20 +377,12 @@ class BayesNet:
         # equation 14.12 of Artificial Intelligence: A Modern Approach for more detail.
         posteriors = {}
         blankets = {}
-        nonevents = self.nodes - set(event)
+        nonevents = sorted(set(self.nodes) - set(event))
         for node in nonevents:
+
             post = self.cpts[node]
-
             for child in self.children.get(node, ()):
-
-                # The following block merges the current CPT with another CPT
-                cpt = self.cpts[child]
-                c, l_idx, r_idx, = post.index.join(cpt.index, how='inner', return_indexers=True)
-                if l_idx is None:
-                    l_idx = np.arange(len(post))
-                if r_idx is None:
-                    r_idx = np.arange(len(cpt))
-                post = pd.Series(post.iloc[l_idx].values * cpt.iloc[r_idx].values, index=c)
+                post = pointwise_mul(post, self.cpts[child])
 
             blanket = list(post.index.names)  # Markov blanket
             blanket.remove(node)
@@ -258,21 +418,117 @@ class BayesNet:
         samples = pd.DataFrame(samples)
         return samples.groupby(list(query)).size() / len(samples)
 
-    def query(self, *query, event, algorithm='rejection', n=100):
-        if algorithm == 'likelihood':
+    def _variable_elimination(self, *query, event):
+        """Variable elimination.
+
+        See figure 14.11 of Artificial Intelligence: A Modern Approach for more detail.
+
+        """
+
+        # We start by determining which nodes can be discarded. We can remove any leaf node that is
+        # part of query variable(s) or the event variable(s). After a leaf node has been removed,
+        # there might be some more leaf nodes to be remove, etc. Differently put, we can ignore
+        # every node that isn't an ancestor of the query variable(s) or the event variable(s).
+        relevant = {*query, *event}
+        for node in list(relevant):
+            relevant |= self.ancestors(node)
+        hidden = relevant - {*query, *event}
+
+        factors = []
+        for node in relevant:
+            factor = self.cpts[node].copy()
+            # Filter each factor according to the event
+            for var, val in event.items():
+                if var in factor.index.names:
+                    factor = factor[factor.index.get_level_values(var) == val]
+
+            factors.append(factor)
+
+        # Sum-out the hidden variables from the factors in which they appear
+        for node in hidden:
+            prod = functools.reduce(
+                pointwise_mul,
+                (
+                    factors.pop(i)
+                    for i in reversed(range(len(factors)))
+                    if node in factors[i].index.names
+                )
+            )
+            prod = sum_out(prod, node)
+            factors.append(prod)
+
+        # Pointwise multiply the rest of the factors and normalize the result
+        posterior = functools.reduce(pointwise_mul, factors)
+        posterior = posterior / posterior.sum()
+        posterior.index = posterior.index.droplevel(list(set(posterior.index.names) - set(query)))
+        return posterior
+
+    def ancestors(self, node):
+        parents = self.parents.get(node, ())
+        if parents:
+            return set(parents) | set.union(*[self.ancestors(p) for p in parents])
+        return set()
+
+    def query(self, *query, event, algorithm='exact', n=100):
+        """Answer a probabilistic query.
+
+        Exact inference is performed by default. However, this might be too slow depending on the
+        graph structure. In that case, it is more suitable to use one of the approximate inference
+        methods. Provided `n` is "large enough", approximate inference methods are usually very
+        reliable.
+
+        Parameters:
+            query: The variables for which the posterior distribution is inferred.
+            event: A
+            algorithm: Inference method to use.
+            n: Number of iterations to perform when using approximate inference method.
+
+        """
+
+        if algorithm == 'exact':
+            answer = self._variable_elimination(*query, event=event)
+
+        elif algorithm == 'gibbs':
+            answer = self._gibbs_sampling(*query, event=event, n=n)
+
+        elif algorithm == 'likelihood':
             answer = self._llh_weighting(*query, event=event, n=n)
 
         elif algorithm == 'rejection':
             answer = self._rejection_sampling(*query, event=event, n=n)
 
-        elif algorithm == 'gibbs':
-            answer = self._gibbs_sampling(*query, event=event, n=n)
-
         else:
-            raise ValueError('Unknown algorithm, must be one of: likelihood, rejection, gibbs')
+            raise ValueError('Unknown algorithm, must be one of: exact, gibbs, likelihood, ' +
+                             'rejection')
 
-        return answer.rename(f'P({",".join(query)})')
+        return answer.rename(f'P({", ".join(query)})')
 
+    def impute(self, sample: dict, **query_params) -> dict:
+        """Replace missing values with the most probable possibility.
 
-    def impute(self, sample):
-        raise NotImplementedError
+        This method returns a fresh copy and does not modify the input.
+
+        Parameters:
+            sample: The sample for which the missing values need replacing. The missing values are
+                expected to be represented with `None`.
+            query_params: The rest of the keyword arguments for specifying what parameters to call
+                the `query` method with.
+
+        """
+
+        # Determine which variables are missing and which are not
+        missing = []
+        event = sample.copy()
+        for k, v in sample.items():
+            if v is None:
+                missing.append(k)
+                del event[k]
+
+        # Compute the likelihood of each possibility
+        posterior = self.query(*missing, event=event, **query_params)
+
+        # Replace the missing values with the most likely values
+        for k, v in zip(posterior.index.names, posterior.idxmax()):
+            event[k] = v
+
+        return event

@@ -20,7 +20,7 @@ setup(
     packages=['rev'],
     install_requires=[
         'pandas',
-        'git+https://github.com/MaxHalford/vose'
+        'vose @ git+https://github.com/MaxHalford/vose'
     ],
     extras_require={'dev': ['pytest']},
     python_requires='>=3.6'
