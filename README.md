@@ -35,7 +35,7 @@ $ pip install git+https://github.com/MaxHalford/hedgehog --upgrade
 
 ### Manual definition
 
-As an example, let's use Judea Pearl's famous alarm network. The central construct in `hedgehog` is the `BayesNet` class. The edges of the network can be provided manually when initialising a `BayesNet`:
+The central construct in `hedgehog` is the `BayesNet` class. The edges of the network can be provided manually when initialising a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
 
 ```python
 >>> import hedgehog as hh
@@ -102,7 +102,11 @@ The `prepare` method has to be called whenever the structure and/or the CPTs are
 
 ### Probabilistic inference
 
-A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generative_model). Therefore, it can be used for many purposes. First of all, it can answer probabilistic queries, such as *what is the likelihood of there being a burglary if both John and Mary call?*. This can done via the `query` method, which returns the probability distribution of the possible outcomes.
+A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generative_model). Therefore, it can be used for many purposes. First of all, it can answer probabilistic queries, such as:
+
+> What is the likelihood of there being a burglary if both John and Mary call?
+
+This question can be answered by using the `query` method, which returns the probability distribution for the possible outcomes.
 
 ```python
 >>> bn.query('Burglary', event={'Mary calls': True, 'John calls': True})
@@ -113,7 +117,7 @@ Name: P(Burglary), dtype: float64
 
 ```
 
-By default, the answer is found via an exact inference method. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an estimate of the answer. The quality of the estimate increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
+By default, the answer is found via an exact inference procedure. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an estimate of the answer. The quality of the estimate increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
 
 ```python
 >>> import numpy as np
@@ -212,13 +216,14 @@ On the way.
 
 Several premade networks are available to fool around with:
 
-- `load_alarm`
-- `load_sprinkler`
+- `load_alarm` -- the alarm network introduced by Judea Pearl.
+- `load_sprinkler` -- the network used in chapter 14 of *Artificial Intelligence: A Modern Approach (3rd edition)*.
 
 Here is some example usage:
 
 ```python
 >>> bn = hh.load_sprinkler()
+
 >>> bn.nodes
 ['Cloudy', 'Rain', 'Sprinkler', 'Wet grass']
 
@@ -237,11 +242,20 @@ Here is some example usage:
 ## Development
 
 ```sh
-> git clone https://github.com/MaxHalford/hedgehog
-> cd hedgehog
-> pip install -e ".[dev]"
-> python setup.py develop
-> pytest
+# Download and navigate to the source code
+$ git clone https://github.com/MaxHalford/hedgehog
+$ cd hedgehog
+
+# Create a virtual environment
+$ python3 -m venv env
+$ source env/bin/activate
+
+# Install in development mode
+$ pip install -e ".[dev]"
+$ python setup.py develop
+
+# Run tests
+$ pytest
 ```
 
 ## License
