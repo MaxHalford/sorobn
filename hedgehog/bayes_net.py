@@ -487,14 +487,10 @@ class BayesNet:
         Example:
 
             >>> import hedgehog as hh
-            >>> import numpy as np
-
-            >>> np.random.seed(42)
 
             >>> bn = hh.load_sprinkler()
 
-            >>> event = {'Sprinkler': True}
-            >>> bn.query('Rain', event=event, algorithm='exact')
+            >>> bn.query('Rain', event={'Sprinkler': True}, algorithm='exact')
             Rain
             False    0.7
             True     0.3
@@ -581,7 +577,13 @@ class BayesNet:
             raise ValueError('Unknown algorithm, must be one of: exact, gibbs, likelihood, ' +
                              'rejection')
 
-        return answer.rename(f'P({", ".join(query)})')
+        answer = answer.rename(f'P({", ".join(query)})')
+
+        if isinstance(answer.index, pd.MultiIndex):  # i.e. there are more than 1 query variable
+            answer = answer.reorder_levels(sorted(answer.index.names)).sort_index()
+
+        return answer
+
 
     def impute(self, sample: dict, **query_params) -> dict:
         """Replace missing values with the most probable possibility.

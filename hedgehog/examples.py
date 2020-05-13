@@ -1,17 +1,31 @@
 import pandas as pd
 
-from . import bayes_net
+import hedgehog as hh
 
 
 __all__ = ['load_alarm']
 
 
-def load_alarm() -> bayes_net.BayesNet:
+def load_alarm() -> hh.BayesNet:
     """Load Judea Pearl's famous example.
+
+    Example:
+
+        >>> import hedgehog as hh
+
+        >>> bn = hh.load_alarm()
+
+        >>> bn.query('John calls', 'Mary calls', event={'Burglary': True, 'Earthquake': False})
+        John calls  Mary calls
+        False       False         0.08463
+                    True          0.06637
+        True        False         0.25677
+                    True          0.59223
+        Name: P(John calls, Mary calls), dtype: float64
 
     """
 
-    bn = bayes_net.BayesNet(
+    bn = hh.BayesNet(
         ('Burglary', 'Alarm'),
         ('Earthquake', 'Alarm'),
         ('Alarm', 'John calls'),
@@ -60,22 +74,36 @@ def load_alarm() -> bayes_net.BayesNet:
     return bn
 
 
-def load_sprinkler() -> bayes_net.BayesNet:
+def load_sprinkler() -> hh.BayesNet:
     """Load the water sprinkler network.
 
     This example is taken from figure 14.12(a) of Artificial Intelligence: A Modern Approach.
 
+    Example:
+
+        >>> import hedgehog as hh
+
+        >>> bn = hh.load_sprinkler()
+
+        >>> bn.query('Rain', event={'Sprinkler': True})
+        Rain
+        False    0.7
+        True     0.3
+        Name: P(Rain), dtype: float64
+
     """
 
-    bn = bayes_net.BayesNet(
+    bn = hh.BayesNet(
         ('Cloudy', 'Sprinkler'),
         ('Cloudy', 'Rain'),
         ('Sprinkler', 'Wet grass'),
         ('Rain', 'Wet grass')
     )
 
+    # P(Cloudy)
     bn.cpts['Cloudy'] = pd.Series({False: .5, True: .5})
 
+    # P(Sprinkler | Cloudy)
     bn.cpts['Sprinkler'] = pd.Series({
         (True, True): .1,
         (True, False): .9,
@@ -83,6 +111,7 @@ def load_sprinkler() -> bayes_net.BayesNet:
         (False, False): .5
     })
 
+    # P(Rain | Cloudy)
     bn.cpts['Rain'] = pd.Series({
         (True, True): .8,
         (True, False): .2,
@@ -90,6 +119,7 @@ def load_sprinkler() -> bayes_net.BayesNet:
         (False, False): .8
     })
 
+    # P(Wet grass | Sprinkler, Rain)
     bn.cpts['Wet grass'] = pd.Series({
         (True, True, True): .99,
         (True, True, False): .01,

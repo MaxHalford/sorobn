@@ -219,7 +219,7 @@ Bayesian networks that handle both discrete and continuous are said to be *hybri
 
 The second approach is to simply discretise the continuous variables. Although this might seem naive, it is generally a good enough approach and definitely makes things simpler implementation-wise. There are many ways to go about discretising a continuous attribute. For instance, you can apply a [quantile-based discretization function](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.qcut.html). You could also round each number to it's closest integer. In some cases you might be able to apply a manual rule. For instance, you can convert a numeric temperature to "cold", "mild", and "hot".
 
-To summarize, we prefer to give the user the flexibility to discretize her variables by herself. Indeed, most of the time the best procedure depends on the problem at hand and cannot be automated adequatly.
+To summarize, we prefer to give the user the flexibility to discretize the variables by herself. Indeed, most of the time the best procedure depends on the problem at hand and cannot be automated adequatly.
 
 ## Examples
 
