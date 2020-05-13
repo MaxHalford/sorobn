@@ -5,7 +5,7 @@
 
 This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/).
 
-The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Nonetheless, it is reasonably efficient and should be able to satisfy most usecases.
+The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Libraries such as pomegranate are wonderful, but they literally contain several thousand lines of code, at the detriment of simplicity and ease of comprehension. Nonetheless, `hedgehog` is reasonably efficient and should be able to satisfy most usecases in a timely manner.
 
 ## Table of contents
 
@@ -120,7 +120,7 @@ Name: P(Burglary), dtype: float64
 
 We can also answer questions that involve multiple query variables, for instance:
 
-> What are the chances of that John and Mary call if there is an earthquake?
+> What are the chances that John and Mary call if an earthquake happens?
 
 ```python
 >>> bn.query('John calls', 'Mary calls', event={'Earthquake': True})
