@@ -1,6 +1,24 @@
-# Bayesian networks in Python
+<div align="center">
+    <h1>Bayesian networks in Python</h1>
+</div>
 
-This is an unambitious implementation of Bayesian networks in Python. For serious usage, you should probably be using an established projects, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/).
+This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/).
+
+The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Nonetheless, it is reasonably performant and should be able to satisfy most usecases.
+
+## Table of contents
+
+- [Table of contents](#table-of-contents)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Manual definition](#manual-definition)
+  - [Probabilistic inference](#probabilistic-inference)
+  - [Missing value imputation](#missing-value-imputation)
+  - [Random sampling](#random-sampling)
+  - [Parameter estimation](#parameter-estimation)
+  - [Structure learning](#structure-learning)
+- [Development](#development)
+- [License](#license)
 
 ## Installation
 
@@ -79,7 +97,7 @@ The `prepare` method has to be called whenever the structure and/or the CPTs are
 
 ### Probabilistic inference
 
-A Bayesian network is a generative model, and therefore can be used for many purposes. First of all, it can answer probabilistic queries, such as *what is the likelihood of there being a burglary if both John and Mary call?*. This can done via the `query` method, which returns the probability distribution of the possible outcomes.
+A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generative_model). Therefore, it can be used for many purposes. First of all, it can answer probabilistic queries, such as *what is the likelihood of there being a burglary if both John and Mary call?*. This can done via the `query` method, which returns the probability distribution of the possible outcomes.
 
 ```python
 >>> bn.query('Burglary', event={'Mary calls': True, 'John calls': True})
@@ -158,6 +176,17 @@ You can use a Bayesian network to generate random samples. The samples will foll
 
 ```
 
+### Parameter estimation
+
+You can determine the values of the CPTs from a dataset. This is a straightforward procedure, as it only requires perfoming a [`groupby`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html) followed by a [`value_counts`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.value_counts.html) for each CPT.
+
+```python
+>>> bn.fit(samples)
+
+```
+
+Note that in this case you do not have to call the `prepare` method, as this is done for you implicitely.
+
 ### Structure learning
 
 On the way.
@@ -169,4 +198,9 @@ On the way.
 > cd chantilly
 > pip install -e ".[dev]"
 > python setup.py develop
+> pytest
 ```
+
+## License
+
+This project is free and open-source software licensed under the [MIT license](https://github.com/MaxHalford/hedgehog/blob/master/LICENSE).

@@ -222,6 +222,11 @@ class BayesNet:
                 [*self.parents[node], node] if node in self.parents else node,
                 inplace=True
             )
+            cpt.name = (
+                f'P({node} | {", ".join(self.parents[node])})'
+                if node in self.parents else
+                f'P({node})'
+            )
 
     def _sample(self, init=None):
         """
@@ -284,15 +289,12 @@ class BayesNet:
         # Compute conditional distribution for each child
         for child, parents in self.parents.items():
             self.cpts[child] = X.groupby(parents)[child].value_counts(normalize=True)
-            self.cpts[child].name = f'P({child} | {", ".join(parents)})'
-            self.cpts[child] = self.cpts[child].sort_index()
 
         # Compute distribution for each orphan (i.e. the roots)
         for orphan in self.nodes - set(self.parents):
             self.cpts[orphan] = X[orphan].value_counts(normalize=True)
-            self.cpts[orphan].index.name = orphan
-            self.cpts[orphan].name = f'P({orphan})'
-            self.cpts[orphan] = self.cpts[orphan].sort_index()
+
+        self.prepare()
 
         return self
 
@@ -325,7 +327,7 @@ class BayesNet:
         return samples.groupby(list(query)).size() / len(samples)
 
     def _llh_weighting(self, *query, event, n_iterations):
-        """Answers a query using likelihood weighting.
+        """Likelihood weighting.
 
         Likelihood weighting is a particular instance of importance sampling. The idea is to
         produce random samples, and weight each sample according to it's likelihood.
