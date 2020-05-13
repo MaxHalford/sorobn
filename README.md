@@ -1,10 +1,11 @@
 <div align="center">
     <h1>Bayesian networks in Python</h1>
 </div>
+</br>
 
 This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/).
 
-The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Nonetheless, it is reasonably performant and should be able to satisfy most usecases.
+The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Nonetheless, it is reasonably efficient and should be able to satisfy most usecases.
 
 ## Table of contents
 
@@ -17,10 +18,14 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [Random sampling](#random-sampling)
   - [Parameter estimation](#parameter-estimation)
   - [Structure learning](#structure-learning)
+  - [Visualization](#visualization)
+- [Examples](#examples)
 - [Development](#development)
 - [License](#license)
 
 ## Installation
+
+You should be able to install and use this library with any Python version above 3.5.
 
 ```sh
 $ pip install git+https://github.com/MaxHalford/hedgehog --upgrade
@@ -44,7 +49,7 @@ As an example, let's use Judea Pearl's famous alarm network. The central constru
 
 ```
 
-In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table) are given. We can set these manually by accessing the `cpts` attribute:
+In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table) are given. Therefore, we can set them manually by accessing the `cpts` attribute:
 
 ```python
 >>> import pandas as pd
@@ -108,7 +113,7 @@ Name: P(Burglary), dtype: float64
 
 ```
 
-By default, the answer is found via an exact inference method. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an approximate answer. The quality of the approximation increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
+By default, the answer is found via an exact inference method. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an estimate of the answer. The quality of the estimate increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
 
 ```python
 >>> import numpy as np
@@ -126,6 +131,13 @@ True     0.27
 Name: P(Burglary), dtype: float64
 
 ```
+
+The supported inference methods are:
+
+- `exact` for [variable elimination](https://www.wikiwand.com/en/Variable_elimination).
+- `gibbs` for [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling).
+- `likekihood` for [likelihood weighting](https://artint.info/2e/html/ArtInt2e.Ch8.S6.SS4.html).
+- `rejection` for [rejection sampling](https://www.wikiwand.com/en/Rejection_sampling).
 
 ### Missing value imputation
 
@@ -181,7 +193,8 @@ You can use a Bayesian network to generate random samples. The samples will foll
 You can determine the values of the CPTs from a dataset. This is a straightforward procedure, as it only requires perfoming a [`groupby`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html) followed by a [`value_counts`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.value_counts.html) for each CPT.
 
 ```python
->>> bn.fit(samples)
+>>> samples = bn.sample(1000)
+>>> bn = bn.fit(samples)
 
 ```
 
@@ -191,11 +204,41 @@ Note that in this case you do not have to call the `prepare` method, as this is 
 
 On the way.
 
+### Visualization
+
+On the way.
+
+## Examples
+
+Several premade networks are available to fool around with:
+
+- `load_alarm`
+- `load_sprinkler`
+
+Here is some example usage:
+
+```python
+>>> bn = hh.load_sprinkler()
+>>> bn.nodes
+['Cloudy', 'Rain', 'Sprinkler', 'Wet grass']
+
+>>> pprint(bn.parents)
+{'Rain': ['Cloudy'],
+ 'Sprinkler': ['Cloudy'],
+ 'Wet grass': ['Sprinkler', 'Rain']}
+
+>>> pprint(bn.children)
+{'Cloudy': ['Sprinkler', 'Rain'],
+ 'Rain': ['Wet grass'],
+ 'Sprinkler': ['Wet grass']}
+
+```
+
 ## Development
 
 ```sh
-> git clone https://github.com/creme-ml/chantilly
-> cd chantilly
+> git clone https://github.com/MaxHalford/hedgehog
+> cd hedgehog
 > pip install -e ".[dev]"
 > python setup.py develop
 > pytest

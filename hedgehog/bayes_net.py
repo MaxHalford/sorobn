@@ -2,6 +2,7 @@ import collections
 import functools
 import itertools
 import random
+import typing
 
 import numpy as np
 import pandas as pd
@@ -20,18 +21,25 @@ class CPTAccessor:
 
     """
 
-    def __init__(self, pandas_series):
-        self._series = pandas_series
+    def __init__(self, series: pd.Series):
+        self.series = series
         self.sampler = None
 
     def sample(self):
+        """Sample a row at random.
+
+        The `sample` method of a series is very slow. Additionally, it is not designed to be used
+        repetitively and requires O(n) steps every time it is called. Instead, we use a Cython
+        implemention of Vose's alias method that takes O(n) time to build and O(1) time to query.
+
+        """
         if self.sampler is None:
             self.sampler = vose.Sampler(
-                weights=self._series.to_numpy(),
+                weights=self.series.to_numpy(),
                 seed=np.random.randint(2 ** 16)
             )
         idx = self.sampler.sample()
-        return self._series.index[idx]
+        return self.series.index[idx]
 
     @functools.lru_cache(maxsize=256)
     def __getitem__(self, idx):
@@ -41,10 +49,10 @@ class CPTAccessor:
         and therefore circumvents the issue.
 
         """
-        return self._series[idx]
+        return self.series[idx]
 
 
-def pointwise_mul(left, right):
+def pointwise_mul(left: pd.Series, right: pd.Series):
     """Pointwise multiplication of two series.
 
     Examples:
@@ -183,7 +191,7 @@ def pointwise_mul(left, right):
     return pd.Series(left.iloc[l_idx].values * right.iloc[r_idx].values, index=index)
 
 
-def sum_out(cdt, var):
+def sum_out(cdt: pd.Series, var: str) -> pd.Series:
     nodes = list(cdt.index.names)
     nodes.remove(var)
     return cdt.groupby(nodes).sum()
@@ -228,7 +236,7 @@ class BayesNet:
                 f'P({node})'
             )
 
-    def _sample(self, init=None):
+    def _sample(self, init: dict = None):
         """
 
         This method is not public because setting fixed values doesn't produce samples that follow
@@ -291,7 +299,7 @@ class BayesNet:
             self.cpts[child] = X.groupby(parents)[child].value_counts(normalize=True)
 
         # Compute distribution for each orphan (i.e. the roots)
-        for orphan in self.nodes - set(self.parents):
+        for orphan in set(self.nodes) - set(self.parents):
             self.cpts[orphan] = X[orphan].value_counts(normalize=True)
 
         self.prepare()
@@ -306,6 +314,22 @@ class BayesNet:
         rejected if any part of the event is not consistent with the sample. The downside of this
         method is that it can potentially reject many samples, and therefore requires a large `n`
         in order to produce reliable estimates.
+
+        Example:
+
+            >>> import hedgehog as hh
+            >>> import numpy as np
+
+            >>> np.random.seed(42)
+
+            >>> bn = hh.load_sprinkler()
+
+            >>> event = {'Sprinkler': True}
+            >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=500)
+            Rain
+            False    0.691781
+            True     0.308219
+            Name: P(Rain), dtype: float64
 
         """
 
@@ -331,6 +355,22 @@ class BayesNet:
 
         Likelihood weighting is a particular instance of importance sampling. The idea is to
         produce random samples, and weight each sample according to it's likelihood.
+
+        Example:
+
+            >>> import hedgehog as hh
+            >>> import numpy as np
+
+            >>> np.random.seed(42)
+
+            >>> bn = hh.load_sprinkler()
+
+            >>> event = {'Sprinkler': True}
+            >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
+            Rain
+            False    0.714862
+            True     0.285138
+            Name: P(Rain), dtype: float64
 
         """
 
@@ -374,6 +414,22 @@ class BayesNet:
         The sampling is conditionned on the current state of the sample, which requires computing
         the conditional distribution of each variable with respect to it's Markov blanket. Every
         time a random value is sampled, we update the current state and record it.
+
+        Example:
+
+            >>> import hedgehog as hh
+            >>> import numpy as np
+
+            >>> np.random.seed(42)
+
+            >>> bn = hh.load_sprinkler()
+
+            >>> event = {'Sprinkler': True}
+            >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
+            Rain
+            False    0.726
+            True     0.274
+            Name: P(Rain), dtype: float64
 
         """
 
@@ -428,6 +484,22 @@ class BayesNet:
 
         See figure 14.11 of Artificial Intelligence: A Modern Approach for more detail.
 
+        Example:
+
+            >>> import hedgehog as hh
+            >>> import numpy as np
+
+            >>> np.random.seed(42)
+
+            >>> bn = hh.load_sprinkler()
+
+            >>> event = {'Sprinkler': True}
+            >>> bn.query('Rain', event=event, algorithm='exact')
+            Rain
+            False    0.7
+            True     0.3
+            Name: P(Rain), dtype: float64
+
         """
 
         # We start by determining which nodes can be discarded. We can remove any leaf node that is
@@ -474,7 +546,8 @@ class BayesNet:
             return set(parents) | set.union(*[self.ancestors(p) for p in parents])
         return set()
 
-    def query(self, *query, event, algorithm='exact', n_iterations=100):
+    def query(self, *query: typing.Tuple[str], event: dict, algorithm='exact',
+              n_iterations=100) -> pd.Series:
         """Answer a probabilistic query.
 
         Exact inference is performed by default. However, this might be too slow depending on the
@@ -484,7 +557,8 @@ class BayesNet:
 
         Parameters:
             query: The variables for which the posterior distribution is inferred.
-            event: A
+            event: The information on which to condition the answer. This is also referred to as
+                the "evidence".
             algorithm: Inference method to use.
             n_iterations: Number of iterations to perform when using an approximate inference
                 method.
