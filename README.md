@@ -118,6 +118,21 @@ Name: P(Burglary), dtype: float64
 
 ```
 
+We can also answer questions that involve multiple query variables, for instance:
+
+> What are the chances of that John and Mary call if there is an earthquake?
+
+```python
+>>> bn.query('John calls', 'Mary calls', event={'Earthquake': True})
+John calls  Mary calls
+False       False         0.675854
+            True          0.027085
+True        False         0.113591
+            True          0.183470
+Name: P(John calls, Mary calls), dtype: float64
+
+```
+
 By default, the answer is found via an exact inference procedure. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an estimate of the answer. The quality of the estimate increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
 
 ```python
