@@ -19,6 +19,7 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [Parameter estimation](#parameter-estimation)
   - [Structure learning](#structure-learning)
   - [Visualization](#visualization)
+  - [Handling continuous variables](#handling-continuous-variables)
 - [Examples](#examples)
 - [Development](#development)
 - [License](#license)
@@ -202,7 +203,7 @@ You can determine the values of the CPTs from a dataset. This is a straightforwa
 
 ```
 
-Note that in this case you do not have to call the `prepare` method, as this is done for you implicitely.
+Note that in this case you do not have to call the `prepare` method, as it is done for you implicitely.
 
 ### Structure learning
 
@@ -212,12 +213,20 @@ On the way.
 
 On the way.
 
+### Handling continuous variables
+
+Bayesian networks that handle both discrete and continuous are said to be *hybrid*. There are two approaches to deal with continuous variables. The first approach is to use [parametric distributions](https://www.wikiwand.com/en/Parametric_statistics) within nodes that pertain to a continuous variable. This has two disavantages. First of all, it is complex because there are different cases to handle: a discrete variable conditioned by a continuous one, a continuous variable conditioned by a discrete one, or combinations of the former with the latter. Secondly, such an approach requires having to pick a parametric distribution for each variable. Although there are methods to automate this choice for you, they are expensive and are far from being foolproof.
+
+The second approach is to simply discretise the continuous variables. Although this might seem naive, it is generally a good enough approach and definitely makes things simpler implementation-wise. There are many ways to go about discretising a continuous attribute. For instance, you can apply a [quantile-based discretization function](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.qcut.html). You could also round each number to it's closest integer. In some cases you might be able to apply a manual rule. For instance, you can convert a numeric temperature to "cold", "mild", and "hot".
+
+To summarize, we prefer to give the user the flexibility to discretize her variables by herself. Indeed, most of the time the best procedure depends on the problem at hand and cannot be automated adequatly.
+
 ## Examples
 
 Several premade networks are available to fool around with:
 
-- `load_alarm` -- the alarm network introduced by Judea Pearl.
-- `load_sprinkler` -- the network used in chapter 14 of *Artificial Intelligence: A Modern Approach (3rd edition)*.
+- `load_alarm` — the alarm network introduced by Judea Pearl.
+- `load_sprinkler` — the network used in chapter 14 of *Artificial Intelligence: A Modern Approach (3rd edition)*.
 
 Here is some example usage:
 
