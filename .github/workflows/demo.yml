@@ -15,4 +15,5 @@ jobs:
           heroku_api_key: ${{secrets.HEROKU_API_KEY}}
           heroku_app_name: "hedgehog-demo"
           heroku_email: "maxhalford25@gmail.com"
+          buildpack: "heroku/python"
           appdir: "demo"
