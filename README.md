@@ -3,25 +3,25 @@
 </div>
 </br>
 
-This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/). There's also the well-documented [bnlearn](https://www.bnlearn.com/) package in R. Hey you could even go medieval and use something like [Netica](https://www.norsys.com/) -- I'm just jesting, they actually have a [very nice tutorial on Bayesian networks](https://www.norsys.com/tutorials/netica/secA/tut_A1.htm).
+This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/). There's also the well-documented [bnlearn](https://www.bnlearn.com/) package in R. Hey, you could even go medieval and use something like [Netica](https://www.norsys.com/) -- I'm just jesting, they actually have a [nice tutorial on Bayesian networks](https://www.norsys.com/tutorials/netica/secA/tut_A1.htm).
 
-The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Libraries such as `pomegranate` are wonderful, but they literally contain several thousand lines of code, at the detriment of simplicity and ease of comprehension. Nonetheless, `hedgehog` is reasonably efficient and should be able to satisfy most usecases in a timely manner.
+The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. I find that libraries such as `pomegranate` are wonderful, but they literally contain several thousand lines of code, at the detriment of simplicity and ease of comprehension. Nonetheless, `hedgehog` is reasonably efficient and should be able to satisfy most usecases in a timely manner.
 
 ## Table of contents
 
 - [Table of contents](#table-of-contents)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [Manual definition](#manual-definition)
-  - [Probabilistic inference](#probabilistic-inference)
-  - [Missing value imputation](#missing-value-imputation)
-  - [Random sampling](#random-sampling)
-  - [Parameter estimation](#parameter-estimation)
-  - [Structure learning](#structure-learning)
-  - [Visualization](#visualization)
-  - [Graphical user interface](#graphical-user-interface)
-  - [Handling continuous variables](#handling-continuous-variables)
-- [Examples](#examples)
+  - [✍️ Manual definition](#%e2%9c%8d%ef%b8%8f-manual-definition)
+  - [🔮 Probabilistic inference](#%f0%9f%94%ae-probabilistic-inference)
+  - [❓ Missing value imputation](#%e2%9d%93-missing-value-imputation)
+  - [🎲 Random sampling](#%f0%9f%8e%b2-random-sampling)
+  - [🧮 Parameter estimation](#%f0%9f%a7%ae-parameter-estimation)
+  - [🧱 Structure learning](#%f0%9f%a7%b1-structure-learning)
+  - [👀 Visualization](#%f0%9f%91%80-visualization)
+  - [👁️ Graphical user interface](#%f0%9f%91%81%ef%b8%8f-graphical-user-interface)
+  - [🔢 Support for continuous variables](#%f0%9f%94%a2-support-for-continuous-variables)
+- [Toy networks](#toy-networks)
 - [Development](#development)
 - [License](#license)
 
@@ -37,7 +37,7 @@ Note that under the hood `hedgehog` uses [`vose`](https://github.com/MaxHalford/
 
 ## Usage
 
-### Manual definition
+### ✍️ Manual definition
 
 The central construct in `hedgehog` is the `BayesNet` class. The edges of the network can be provided manually when initialising a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
 
@@ -116,7 +116,7 @@ The `prepare` method has to be called whenever the structure and/or the CPTs are
 
 ```
 
-### Probabilistic inference
+### 🔮 Probabilistic inference
 
 A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generative_model). Therefore, it can be used for many purposes. First of all, it can answer probabilistic queries, such as:
 
@@ -174,7 +174,7 @@ The supported inference methods are:
 - `likekihood` for [likelihood weighting](https://artint.info/2e/html/ArtInt2e.Ch8.S6.SS4.html).
 - `rejection` for [rejection sampling](https://www.wikiwand.com/en/Rejection_sampling).
 
-### Missing value imputation
+### ❓ Missing value imputation
 
 A usecase for probabilistic inference is to impute missing values. The `impute` method fills the missing values with the most likely replacements, given the present information. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
 
@@ -201,7 +201,7 @@ A usecase for probabilistic inference is to impute missing values. The `impute` 
 
 Note that the `impute` method can be seen as the equivalent of [`pomegranate`'s `predict` method](https://pomegranate.readthedocs.io/en/latest/BayesianNetwork.html#prediction).
 
-### Random sampling
+### 🎲 Random sampling
 
 You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and it's conditional probability tables.
 
@@ -223,7 +223,7 @@ You can use a Bayesian network to generate random samples. The samples will foll
 
 ```
 
-### Parameter estimation
+### 🧮 Parameter estimation
 
 You can determine the values of the CPTs from a dataset. This is a straightforward procedure, as it only requires perfoming a [`groupby`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html) followed by a [`value_counts`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.value_counts.html) for each CPT.
 
@@ -235,11 +235,11 @@ You can determine the values of the CPTs from a dataset. This is a straightforwa
 
 Note that in this case you do not have to call the `prepare` method because it is done for you implicitely.
 
-### Structure learning
+### 🧱 Structure learning
 
 On the way.
 
-### Visualization
+### 👀 Visualization
 
 You can use the `graphviz` method to return a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph).
 
@@ -258,7 +258,7 @@ You can use the `graphviz` method to return a [`graphviz.Digraph`](https://graph
 
 Note that the [`graphviz` library](https://graphviz.readthedocs.io/en/stable/) is not installed by default because it requires a platform dependent binary. Therefore, you have to [install it](https://graphviz.readthedocs.io/en/stable/#installation) by yourself.
 
-### Graphical user interface
+### 👁️ Graphical user interface
 
 A side-goal of this project is to provide a user interface to play around with a given user interface. Fortunately, we live in wonderful times where many powerful and opensource tools are available. At the moment, I have a preference for [`streamlit`](https://www.streamlit.io/). For the while, you can run a demo by running the `hedgehog` command in a terminal:
 
@@ -268,7 +268,7 @@ $ hedgehog
 
 This will launch a `streamlit` interface where you can play around with the examples that `hedgehog` provides. An obvious next step is to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
 
-### Handling continuous variables
+### 🔢 Support for continuous variables
 
 Bayesian networks that handle both discrete and continuous are said to be *hybrid*. There are two approaches to deal with continuous variables. The first approach is to use [parametric distributions](https://www.wikiwand.com/en/Parametric_statistics) within nodes that pertain to a continuous variable. This has two disavantages. First of all, it is complex because there are different cases to handle: a discrete variable conditioned by a continuous one, a continuous variable conditioned by a discrete one, or combinations of the former with the latter. Secondly, such an approach requires having to pick a parametric distribution for each variable. Although there are methods to automate this choice for you, they are expensive and are far from being foolproof.
 
@@ -276,12 +276,12 @@ The second approach is to simply discretise the continuous variables. Although t
 
 To summarize, we prefer to give the user the flexibility to discretize the variables by herself. Indeed, most of the time the best procedure depends on the problem at hand and cannot be automated adequatly.
 
-## Examples
+## Toy networks
 
-Several premade networks are available to fool around with:
+Several toy networks are available to fool around with:
 
 - `load_alarm` — the alarm network introduced by Judea Pearl.
-- `load_asia` — a popular exampled introduced in [*Local computations with probabilities on graphical structures and their application to expert systems*](https://www.jstor.org/stable/2345762).
+- `load_asia` — a popular example introduced in [*Local computations with probabilities on graphical structures and their application to expert systems*](https://www.jstor.org/stable/2345762).
 - `load_sprinkler` — the network used in chapter 14 of [*Artificial Intelligence: A Modern Approach (3rd edition)*](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=2&ved=2ahUKEwj5mv3s9rLpAhU3D2MBHc0zARIQFjABegQIAhAB&url=https%3A%2F%2Ffaculty.psau.edu.sa%2Ffiledownload%2Fdoc-7-pdf-a154ffbcec538a4161a406abf62f5b76-original.pdf&usg=AOvVaw0i7pLrlBs9LMW296xeV6b0).
 
 Here is some example usage:

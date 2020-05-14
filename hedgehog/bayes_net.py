@@ -469,6 +469,7 @@ class BayesNet:
         cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
 
         for i in range(n_iterations):
+
             # Go to the next variable
             var = next(cycle)
 
@@ -562,8 +563,8 @@ class BayesNet:
 
         Parameters:
             query: The variables for which the posterior distribution is inferred.
-            event: The information on which to condition the answer. This is also referred to as
-                the "evidence".
+            event: The information on which to condition the answer. This can also be referred to
+                as the "evidence".
             algorithm: Inference method to use.
             n_iterations: Number of iterations to perform when using an approximate inference
                 method.
