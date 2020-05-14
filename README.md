@@ -265,7 +265,7 @@ A side-goal of this project is to provide a user interface to play around with a
 You can install the GUI dependencies by running the following command:
 
 ```sh
-$ pip install git+https://github.com/MaxHalford/hedgehog[gui]
+$ pip install git+https://github.com/MaxHalford/hedgehog --install-option="--extras-require=gui"
 ```
 
 You can then launch a demo by running the `hedgehog` command:
