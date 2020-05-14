@@ -604,11 +604,11 @@ class BayesNet:
 
         answer = answer.rename(f'P({", ".join(query)})')
 
-        if isinstance(answer.index, pd.MultiIndex):  # i.e. there are more than 1 query variable
-            answer = answer.reorder_levels(sorted(answer.index.names)).sort_index()
+        # We sort the index levels if there are multiple query variables
+        if isinstance(answer.index, pd.MultiIndex):
+            answer = answer.reorder_levels(sorted(answer.index.names))
 
-        return answer
-
+        return answer.sort_index()
 
     def impute(self, sample: dict, **query_params) -> dict:
         """Replace missing values with the most probable possibility.
@@ -657,3 +657,59 @@ class BayesNet:
                 G.edge(node, child)
 
         return G
+
+    def full_joint_dist(self) -> pd.DataFrame:
+        """Return the full joint distribution.
+
+        The full joint distribution is obtained by pointwise multiplying all the conditional
+        probability tables with each other and normalizing the result.
+
+        Example:
+
+            >>> import hedgehog as hh
+
+            >>> bn = hh.load_sprinkler()
+
+            >>> bn.full_joint_dist()
+            Cloudy  Rain   Sprinkler  Wet grass
+            False   False  False      False        0.2000
+                                      True         0.0000
+                           True       False        0.0200
+                                      True         0.1800
+                    True   False      False        0.0050
+                                      True         0.0450
+                           True       False        0.0005
+                                      True         0.0495
+            True    False  False      False        0.0900
+                                      True         0.0000
+                           True       False        0.0010
+                                      True         0.0090
+                    True   False      False        0.0360
+                                      True         0.3240
+                           True       False        0.0004
+                                      True         0.0396
+            dtype: float64
+
+        """
+        fjd = functools.reduce(pointwise_mul, self.cpts.values())
+        fjd = fjd.reorder_levels(sorted(fjd.index.names))
+        fjd = fjd.sort_index()
+        return fjd / fjd.sum()
+
+    def predict_proba(self, X: pd.DataFrame) -> pd.Series:
+        """Return probability estimates.
+
+        The probabilities are obtained by first computing the full joint distribution. Then, the
+        probability of sample is retrived by accessing the relevant row in the full joint
+        distribution.
+
+        This method is a stepping stone for other functionalities, such as computing the
+        log-likelihood. The latter can in turn be used for structure learning.
+
+        Parameters:
+            X: Samples.
+
+        """
+        fjd = self.full_joint_dist().reorder_levels(X.columns)
+        probas = fjd[pd.MultiIndex.from_frame(X)]
+        return np.log(probas)

@@ -2,7 +2,9 @@ import hedgehog as hh
 import streamlit as st
 
 """
-# 🦔 [hedgehog](https://github.com/MaxHalford/hedgehog)
+# 🦔 hedgehog
+
+This is a little demo app for the [hedgehog library](https://github.com/MaxHalford/hedgehog).
 """
 
 loaders = {
