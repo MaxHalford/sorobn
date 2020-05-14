@@ -1,0 +1,1 @@
+hedgehog @ git+https://github.com/MaxHalford/hedgehog[gui]

@@ -30,7 +30,7 @@ The main goal of this project is to be used for educational purposes. As such, m
 You should be able to install and use this library with any Python version above 3.5.
 
 ```sh
-$ pip install git+https://github.com/MaxHalford/hedgehog --upgrade
+$ pip install git+https://github.com/MaxHalford/hedgehog
 ```
 
 Note that under the hood `hedgehog` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
@@ -260,7 +260,15 @@ Note that the [`graphviz` library](https://graphviz.readthedocs.io/en/stable/) i
 
 ### 👁️ Graphical user interface
 
-A side-goal of this project is to provide a user interface to play around with a given user interface. Fortunately, we live in wonderful times where many powerful and opensource tools are available. At the moment, I have a preference for [`streamlit`](https://www.streamlit.io/). For the while, you can run a demo by running the `hedgehog` command in a terminal:
+A side-goal of this project is to provide a user interface to play around with a given user interface. Fortunately, we live in wonderful times where many powerful and opensource tools are available. At the moment, I have a preference for [`streamlit`](https://www.streamlit.io/).
+
+You can install the GUI dependencies by running the following command:
+
+```sh
+$ pip install git+https://github.com/MaxHalford/hedgehog[gui]
+```
+
+You can then launch a demo by running the `hedgehog` command:
 
 ```sh
 $ hedgehog
