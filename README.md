@@ -274,7 +274,9 @@ You can then launch a demo by running the `hedgehog` command:
 $ hedgehog
 ```
 
-This will launch a `streamlit` interface where you can play around with the examples that `hedgehog` provides. An obvious next step is to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
+This will launch a `streamlit` interface where you can play around with the examples that `hedgehog` provides. You can see a running instance of it in [this Heroku app](https://hedgehog-demo.herokuapp.com/).
+
+An obvious next step would be to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
 
 ### 🔢 Support for continuous variables
 
