@@ -3,9 +3,9 @@
 </div>
 </br>
 
-This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/).
+This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [PyMC](https://docs.pymc.io/), [Stan](https://mc-stan.org/), [Edward](http://edwardlib.org/), and [Pyro](https://pyro.ai/). There's also the well-documented [bnlearn](https://www.bnlearn.com/) package in R. Hey you could even go medieval and use something like [Netica](https://www.norsys.com/) -- I'm just jesting, they actually have a [very nice tutorial on Bayesian networks](https://www.norsys.com/tutorials/netica/secA/tut_A1.htm).
 
-The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Libraries such as pomegranate are wonderful, but they literally contain several thousand lines of code, at the detriment of simplicity and ease of comprehension. Nonetheless, `hedgehog` is reasonably efficient and should be able to satisfy most usecases in a timely manner.
+The main goal of this project is to be used for educational purposes. As such, more emphasis is put on tidyness and conciseness than on performance. Libraries such as `pomegranate` are wonderful, but they literally contain several thousand lines of code, at the detriment of simplicity and ease of comprehension. Nonetheless, `hedgehog` is reasonably efficient and should be able to satisfy most usecases in a timely manner.
 
 ## Table of contents
 
@@ -46,6 +46,18 @@ The central construct in `hedgehog` is the `BayesNet` class. The edges of the ne
 ...     ('Earthquake', 'Alarm'),
 ...     ('Alarm', 'John calls'),
 ...     ('Alarm', 'Mary calls')
+... )
+
+```
+
+You can also use the following notation, which is slightly terser:
+
+```python
+>>> import hedgehog as hh
+
+>>> bn = hh.BayesNet(
+...     (('Burglary', 'Earthquake'), 'Alarm'),
+...     ('Alarm', ('John calls', 'Mary calls'))
 ... )
 
 ```
@@ -161,7 +173,7 @@ The supported inference methods are:
 
 ### Missing value imputation
 
-A usecase for probabilistic inference is to impute missing values. The `impute` method replaces the missing values with the most likely replacements given the present information. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
+A usecase for probabilistic inference is to impute missing values. The `impute` method fills the missing values with the most likely replacements, given the present information. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
 
 ```python
 >>> from pprint import pprint
@@ -218,7 +230,7 @@ You can determine the values of the CPTs from a dataset. This is a straightforwa
 
 ```
 
-Note that in this case you do not have to call the `prepare` method, as it is done for you implicitely.
+Note that in this case you do not have to call the `prepare` method because it is done for you implicitely.
 
 ### Structure learning
 
@@ -226,7 +238,20 @@ On the way.
 
 ### Visualization
 
-On the way.
+You can use the `graphviz` to return a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph).
+
+```python
+>>> bn = hh.load_asia()
+>>> dot = bn.graphviz()
+>>> path = dot.render('asia', directory='figures', format='svg', cleanup=True)
+
+```
+
+<div align="center">
+    <img src="figures/asia.svg">
+</div>
+
+Note that the [`graphviz` library](https://graphviz.readthedocs.io/en/stable/) is not installed by default; you have to [install it](https://graphviz.readthedocs.io/en/stable/#installation) by yourself.
 
 ### Handling continuous variables
 
@@ -241,7 +266,8 @@ To summarize, we prefer to give the user the flexibility to discretize the varia
 Several premade networks are available to fool around with:
 
 - `load_alarm` — the alarm network introduced by Judea Pearl.
-- `load_sprinkler` — the network used in chapter 14 of *Artificial Intelligence: A Modern Approach (3rd edition)*.
+- `load_asia` — a popular exampled introduced in [*Local computations with probabilities on graphical structures and their application to expert systems*](https://www.jstor.org/stable/2345762).
+- `load_sprinkler` — the network used in chapter 14 of [*Artificial Intelligence: A Modern Approach (3rd edition)*](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=2&ved=2ahUKEwj5mv3s9rLpAhU3D2MBHc0zARIQFjABegQIAhAB&url=https%3A%2F%2Ffaculty.psau.edu.sa%2Ffiledownload%2Fdoc-7-pdf-a154ffbcec538a4161a406abf62f5b76-original.pdf&usg=AOvVaw0i7pLrlBs9LMW296xeV6b0).
 
 Here is some example usage:
 

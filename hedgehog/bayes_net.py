@@ -204,14 +204,23 @@ class BayesNet:
 
     def __init__(self, *edges):
 
+        def coerce_iter(obj):
+            if isinstance(obj, tuple):
+                return obj
+            return (obj,)
+
         # Convert edges into children and parent connections
         parents = collections.defaultdict(list)
         children = collections.defaultdict(list)
-        for parent, child in collections.OrderedDict.fromkeys(edges):  # remove duplicates
-            parents[child].append(parent)
-            children[parent].append(child)
-        self.parents = dict(parents)
-        self.children = dict(children)
+
+        for k, v in collections.OrderedDict.fromkeys(edges):  # remove duplicates and keep order
+            for parent, child in itertools.product(coerce_iter(k), coerce_iter(v)):
+                parents[child].append(parent)
+                children[parent].append(child)
+
+        # Remove duplicates
+        self.parents = {k: list(collections.OrderedDict.fromkeys(v)) for k, v in parents.items()}
+        self.children = {k: list(collections.OrderedDict.fromkeys(v)) for k, v in children.items()}
 
         self.nodes = sorted({*parents.keys(), *children.keys()})
         self.cpts = {}
@@ -614,3 +623,21 @@ class BayesNet:
             event[k] = v
 
         return event
+
+    def graphviz(self):
+        """Export to Graphviz.
+
+        The graphviz module is imported during this function call. Therefore it isn't a hard
+        requirement. Instead the user has to install it by herself.
+
+        """
+
+        import graphviz
+
+        G = graphviz.Digraph()
+
+        for node, children in self.children.items():
+            for child in children:
+                G.edge(node, child)
+
+        return G

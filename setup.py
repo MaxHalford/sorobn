@@ -22,7 +22,10 @@ setup(
         'pandas',
         'vose @ git+https://github.com/MaxHalford/vose'
     ],
-    extras_require={'dev': ['pytest']},
+    extras_require={
+        'dev': ['pytest'],
+        'gui': ['graphviz', 'streamlit']
+    },
     python_requires='>=3.6'
 )
 
