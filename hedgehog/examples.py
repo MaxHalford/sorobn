@@ -3,9 +3,6 @@ import pandas as pd
 import hedgehog as hh
 
 
-__all__ = ['load_alarm']
-
-
 def load_alarm() -> hh.BayesNet:
     """Load Judea Pearl's famous example.
 
@@ -147,8 +144,16 @@ def load_asia() -> hh.BayesNet:
         (False, False, False): 1
     })
 
-    # P(TB or cancer | TB or cancer, Bronchitis)
-    bn.cpts['TB or cancer'] = pd.Series({
+    # P(Positive X-ray | TB or cancer)
+    bn.cpts['Positive X-ray'] = pd.Series({
+        (True, True): .98,
+        (True, False): .02,
+        (False, True): .05,
+        (False, False): .95
+    })
+
+    # P(Dispnea | TB or cancer, Bronchitis)
+    bn.cpts['Dispnea'] = pd.Series({
         (True, True, True): .9,
         (True, True, False): .1,
 

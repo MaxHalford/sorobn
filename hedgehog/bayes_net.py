@@ -568,6 +568,21 @@ class BayesNet:
             n_iterations: Number of iterations to perform when using an approximate inference
                 method.
 
+        Example:
+
+            >>> import hedgehog as hh
+
+            >>> bn = hh.load_asia()
+
+            >>> event = {'Visit to Asia': True, 'Smoker': True}
+            >>> bn.query('Lung cancer', 'Tuberculosis', event=event)
+            Lung cancer  Tuberculosis
+            False        False           0.855
+                         True            0.045
+            True         False           0.095
+                         True            0.005
+            Name: P(Lung cancer, Tuberculosis), dtype: float64
+
         """
 
         if algorithm == 'exact':

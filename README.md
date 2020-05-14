@@ -19,6 +19,7 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [Parameter estimation](#parameter-estimation)
   - [Structure learning](#structure-learning)
   - [Visualization](#visualization)
+  - [Graphical user interface](#graphical-user-interface)
   - [Handling continuous variables](#handling-continuous-variables)
 - [Examples](#examples)
 - [Development](#development)
@@ -31,6 +32,8 @@ You should be able to install and use this library with any Python version above
 ```sh
 $ pip install git+https://github.com/MaxHalford/hedgehog --upgrade
 ```
+
+Note that under the hood `hedgehog` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
 
 ## Usage
 
@@ -50,7 +53,7 @@ The central construct in `hedgehog` is the `BayesNet` class. The edges of the ne
 
 ```
 
-You can also use the following notation, which is slightly terser:
+You can also use the following notation, which is slightly more terse:
 
 ```python
 >>> import hedgehog as hh
@@ -238,7 +241,7 @@ On the way.
 
 ### Visualization
 
-You can use the `graphviz` to return a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph).
+You can use the `graphviz` method to return a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph).
 
 ```python
 >>> bn = hh.load_asia()
@@ -247,11 +250,23 @@ You can use the `graphviz` to return a [`graphviz.Digraph`](https://graphviz.rea
 
 ```
 
+</br>
 <div align="center">
     <img src="figures/asia.svg">
 </div>
+</br>
 
-Note that the [`graphviz` library](https://graphviz.readthedocs.io/en/stable/) is not installed by default; you have to [install it](https://graphviz.readthedocs.io/en/stable/#installation) by yourself.
+Note that the [`graphviz` library](https://graphviz.readthedocs.io/en/stable/) is not installed by default because it requires a platform dependent binary. Therefore, you have to [install it](https://graphviz.readthedocs.io/en/stable/#installation) by yourself.
+
+### Graphical user interface
+
+A side-goal of this project is to provide a user interface to play around with a given user interface. Fortunately, we live in wonderful times where many powerful and opensource tools are available. At the moment, I have a preference for [`streamlit`](https://www.streamlit.io/). For the while, you can run a demo by running the `hedgehog` command in a terminal:
+
+```sh
+$ hedgehog
+```
+
+This will launch a `streamlit` interface where you can play around with the examples that `hedgehog` provides. An obvious next step is to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
 
 ### Handling continuous variables
 

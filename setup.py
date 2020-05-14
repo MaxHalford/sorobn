@@ -18,6 +18,7 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/MaxHalford/hedgehog',
     packages=['hedgehog'],
+    python_requires='>=3.6',
     install_requires=[
         'pandas',
         'vose @ git+https://github.com/MaxHalford/vose'
@@ -26,6 +27,10 @@ setup(
         'dev': ['pytest'],
         'gui': ['graphviz', 'streamlit']
     },
-    python_requires='>=3.6'
+    entry_points={
+       'console_scripts': [
+           'hedgehog=hedgehog:cli_hook'
+       ],
+    }
 )
 
