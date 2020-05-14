@@ -1,1 +1,1 @@
-web: hedgehog
+web: sh setup.sh && hedgehog
