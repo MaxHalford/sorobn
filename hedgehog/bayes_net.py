@@ -1,6 +1,7 @@
 import collections
 import functools
 import itertools
+import operator
 import random
 import typing
 
@@ -35,7 +36,7 @@ class CPTAccessor:
         """
         if self.sampler is None:
             self.sampler = vose.Sampler(
-                weights=self.series.to_numpy(),
+                weights=self.series.to_numpy(dtype=float),
                 seed=np.random.randint(2 ** 16)
             )
         idx = self.sampler.sample()
@@ -224,6 +225,7 @@ class BayesNet:
 
         self.nodes = sorted({*parents.keys(), *children.keys()})
         self.cpts = {}
+        self._cpt_sizes = {}
 
     def prepare(self):
         """Perform house-keeping.
@@ -300,20 +302,48 @@ class BayesNet:
             return pd.DataFrame(self._sample() for _ in range(n)).sort_index(axis='columns')
         return self._sample()
 
-    def fit(self, X: pd.DataFrame):
-        """Find the values of each conditional distribution."""
+    def partial_fit(self, X: pd.DataFrame):
+        """Update the parameters of each conditional distribution."""
 
-        # Compute conditional distribution for each child
+        # Compute the conditional distribution for each node that has parents
         for child, parents in self.parents.items():
-            self.cpts[child] = X.groupby(parents)[child].value_counts(normalize=True)
 
-        # Compute distribution for each orphan (i.e. the roots)
+            # If a CPT already exists, then we update it...
+            if child in self.cpts:
+                old_counts = self.cpts[child] * self._cpt_sizes[child]
+                new_counts = X.groupby(parents)[child].value_counts()
+                counts = old_counts.combine(new_counts, operator.add, fill_value=0)
+                self.cpts[child] = counts.groupby(parents).apply(lambda x: x / x.sum())
+                self._cpt_sizes[child] = counts.groupby(parents).sum()
+
+            # ... else we compute it from scratch
+            else:
+                self.cpts[child] = X.groupby(parents)[child].value_counts(normalize=True)
+                self._cpt_sizes[child] = X.groupby(parents).size()
+
+        # Compute the distribution for each orphan (i.e. the roots)
         for orphan in set(self.nodes) - set(self.parents):
-            self.cpts[orphan] = X[orphan].value_counts(normalize=True)
+
+            if orphan in self.cpts:
+                old_counts = self.cpts[orphan] * self._cpt_sizes[orphan]
+                new_counts = X[orphan].value_counts()
+                counts = old_counts.combine(new_counts, operator.add, fill_value=0)
+                self._cpt_sizes[orphan] += len(X)
+                self.cpts[orphan] = counts / self._cpt_sizes[orphan]
+
+            else:
+                self.cpts[orphan] = X[orphan].value_counts(normalize=True)
+                self._cpt_sizes[orphan] = len(X)
 
         self.prepare()
 
         return self
+
+    def fit(self, X: pd.DataFrame):
+        """Find the values of each conditional distribution."""
+        self.cpts = {}
+        self._cpt_sizes = {}
+        return self.partial_fit(X)
 
     def _rejection_sampling(self, *query, event, n_iterations):
         """Answer a query using rejection sampling.
