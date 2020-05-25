@@ -3,6 +3,14 @@ import pandas as pd
 import hedgehog as hh
 
 
+__all__ = [
+    'load_alarm',
+    'load_asia',
+    'load_grades',
+    'load_sprinkler'
+]
+
+
 def load_alarm() -> hh.BayesNet:
     """Load Judea Pearl's famous example.
 
@@ -33,13 +41,13 @@ def load_alarm() -> hh.BayesNet:
     )
 
     # P(Burglary)
-    bn.cpts['Burglary'] = pd.Series({False: .999, True: .001})
+    bn.P['Burglary'] = pd.Series({False: .999, True: .001})
 
     # P(Earthquake)
-    bn.cpts['Earthquake'] = pd.Series({False: .998, True: .002})
+    bn.P['Earthquake'] = pd.Series({False: .998, True: .002})
 
     # P(Alarm | Burglary, Earthquake)
-    bn.cpts['Alarm'] = pd.Series({
+    bn.P['Alarm'] = pd.Series({
         (True, True, True): .95,
         (True, True, False): .05,
 
@@ -54,7 +62,7 @@ def load_alarm() -> hh.BayesNet:
     })
 
     # P(John calls | Alarm)
-    bn.cpts['John calls'] = pd.Series({
+    bn.P['John calls'] = pd.Series({
         (True, True): .9,
         (True, False): .1,
         (False, True): .05,
@@ -62,7 +70,7 @@ def load_alarm() -> hh.BayesNet:
     })
 
     # P(Mary calls | Alarm)
-    bn.cpts['Mary calls'] = pd.Series({
+    bn.P['Mary calls'] = pd.Series({
         (True, True): .7,
         (True, False): .3,
         (False, True): .01,
@@ -100,10 +108,10 @@ def load_asia() -> hh.BayesNet:
     )
 
     # P(Visit to Asia)
-    bn.cpts['Visit to Asia'] = pd.Series({True: .01, False: .99})
+    bn.P['Visit to Asia'] = pd.Series({True: .01, False: .99})
 
     # P(Tuberculosis | Visit to Asia)
-    bn.cpts['Tuberculosis'] = pd.Series({
+    bn.P['Tuberculosis'] = pd.Series({
         (True, True): .05,
         (True, False): .95,
         (False, True): .01,
@@ -111,10 +119,10 @@ def load_asia() -> hh.BayesNet:
     })
 
     # P(Smoker)
-    bn.cpts['Smoker'] = pd.Series({True: .5, False: .5})
+    bn.P['Smoker'] = pd.Series({True: .5, False: .5})
 
     # P(Lung cancer | Smoker)
-    bn.cpts['Lung cancer'] = pd.Series({
+    bn.P['Lung cancer'] = pd.Series({
         (True, True): .1,
         (True, False): .9,
         (False, True): .01,
@@ -122,7 +130,7 @@ def load_asia() -> hh.BayesNet:
     })
 
     # P(Bronchitis | Smoker)
-    bn.cpts['Bronchitis'] = pd.Series({
+    bn.P['Bronchitis'] = pd.Series({
         (True, True): .6,
         (True, False): .4,
         (False, True): .3,
@@ -130,7 +138,7 @@ def load_asia() -> hh.BayesNet:
     })
 
     # P(TB or cancer | Tuberculosis, Lung cancer)
-    bn.cpts['TB or cancer'] = pd.Series({
+    bn.P['TB or cancer'] = pd.Series({
         (True, True, True): 1,
         (True, True, False): 0,
 
@@ -145,7 +153,7 @@ def load_asia() -> hh.BayesNet:
     })
 
     # P(Positive X-ray | TB or cancer)
-    bn.cpts['Positive X-ray'] = pd.Series({
+    bn.P['Positive X-ray'] = pd.Series({
         (True, True): .98,
         (True, False): .02,
         (False, True): .05,
@@ -153,7 +161,7 @@ def load_asia() -> hh.BayesNet:
     })
 
     # P(Dispnea | TB or cancer, Bronchitis)
-    bn.cpts['Dispnea'] = pd.Series({
+    bn.P['Dispnea'] = pd.Series({
         (True, True, True): .9,
         (True, True, False): .1,
 
@@ -199,10 +207,10 @@ def load_sprinkler() -> hh.BayesNet:
     )
 
     # P(Cloudy)
-    bn.cpts['Cloudy'] = pd.Series({False: .5, True: .5})
+    bn.P['Cloudy'] = pd.Series({False: .5, True: .5})
 
     # P(Sprinkler | Cloudy)
-    bn.cpts['Sprinkler'] = pd.Series({
+    bn.P['Sprinkler'] = pd.Series({
         (True, True): .1,
         (True, False): .9,
         (False, True): .5,
@@ -210,7 +218,7 @@ def load_sprinkler() -> hh.BayesNet:
     })
 
     # P(Rain | Cloudy)
-    bn.cpts['Rain'] = pd.Series({
+    bn.P['Rain'] = pd.Series({
         (True, True): .8,
         (True, False): .2,
         (False, True): .2,
@@ -218,7 +226,7 @@ def load_sprinkler() -> hh.BayesNet:
     })
 
     # P(Wet grass | Sprinkler, Rain)
-    bn.cpts['Wet grass'] = pd.Series({
+    bn.P['Wet grass'] = pd.Series({
         (True, True, True): .99,
         (True, True, False): .01,
 
@@ -230,6 +238,63 @@ def load_sprinkler() -> hh.BayesNet:
 
         (False, False, True): 0,
         (False, False, False): 1
+    })
+
+    bn.prepare()
+
+    return bn
+
+
+def load_grades():
+
+    bn = hh.BayesNet(
+        ('Difficulty', 'Grade'),
+        ('Intelligence', 'Grade'),
+        ('Intelligence', 'SAT'),
+        ('Grade', 'Letter')
+    )
+
+    # P(Difficulty)
+    bn.P['Difficulty'] = pd.Series({'Easy': .6, 'Hard': .4})
+
+    # P(Intelligence)
+    bn.P['Intelligence'] = pd.Series({'Average': .7, 'Smart': .3})
+
+    # P(Grade | Difficult, Intelligence)
+    bn.P['Grade'] = pd.Series({
+        ('Easy', 'Average', 'A'): .3,
+        ('Easy', 'Average', 'B'): .4,
+        ('Easy', 'Average', 'C'): .3,
+
+        ('Easy', 'Smart', 'A'): .9,
+        ('Easy', 'Smart', 'B'): .08,
+        ('Easy', 'Smart', 'C'): .02,
+
+        ('Hard', 'Average', 'A'): .05,
+        ('Hard', 'Average', 'B'): .25,
+        ('Hard', 'Average', 'C'): .7,
+
+        ('Hard', 'Smart', 'A'): .5,
+        ('Hard', 'Smart', 'B'): .3,
+        ('Hard', 'Smart', 'C'): .2
+    })
+
+    # P(SAT | Intelligence)
+    bn.P['SAT'] = pd.Series({
+        ('Average', 'Failure'): .95,
+        ('Average', 'Success'): .05,
+        ('Smart', 'Failure'): .2,
+        ('Smart', 'Success'): .8
+    })
+
+    # P(Letter | Grade)
+    bn.P['Letter'] = pd.Series({
+        ('A', 'Weak'): .1,
+        ('A', 'Strong'): .9,
+        ('B', 'Weak'): .4,
+        ('B', 'Strong'): .6,
+        ('C', 'Weak'): .99,
+        ('C', 'Strong'): .01
     })
 
     bn.prepare()

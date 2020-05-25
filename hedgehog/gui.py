@@ -23,7 +23,7 @@ st.graphviz_chart(bn.graphviz())
 """
 
 var = st.selectbox('Select a variable', bn.nodes)
-cpt = bn.cpts[var].to_frame().reset_index()
+cpt = bn.P[var].to_frame().reset_index()
 cpt
 
 """

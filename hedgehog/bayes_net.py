@@ -13,12 +13,12 @@ import vose
 __all__ = ['BayesNet']
 
 
-@pd.api.extensions.register_series_accessor('cpt')
-class CPTAccessor:
+@pd.api.extensions.register_series_accessor('cdt')
+class CDTAccessor:
     """
 
     Adds utilities to a pandas.Series to help manipulate it as a conditional probability
-    table (CPT).
+    table (CDT).
 
     """
 
@@ -192,10 +192,10 @@ def pointwise_mul(left: pd.Series, right: pd.Series):
     return pd.Series(left.iloc[l_idx].values * right.iloc[r_idx].values, index=index)
 
 
-def sum_out(cdt: pd.Series, var: str) -> pd.Series:
-    nodes = list(cdt.index.names)
+def sum_out(P: pd.Series, var: str) -> pd.Series:
+    nodes = list(P.index.names)
     nodes.remove(var)
-    return cdt.groupby(nodes).sum()
+    return P.groupby(nodes).sum()
 
 
 class BayesNet:
@@ -224,8 +224,8 @@ class BayesNet:
         self.children = {k: list(collections.OrderedDict.fromkeys(v)) for k, v in children.items()}
 
         self.nodes = sorted({*parents.keys(), *children.keys()})
-        self.cpts = {}
-        self._cpt_sizes = {}
+        self.P = {}
+        self._P_sizes = {}
 
     def prepare(self):
         """Perform house-keeping.
@@ -235,13 +235,13 @@ class BayesNet:
 
         """
 
-        for node, cpt in self.cpts.items():
-            cpt.sort_index(inplace=True)
-            cpt.index.rename(
+        for node, P in self.P.items():
+            P.sort_index(inplace=True)
+            P.index.rename(
                 [*self.parents[node], node] if node in self.parents else node,
                 inplace=True
             )
-            cpt.name = (
+            P.name = (
                 f'P({node} | {", ".join(self.parents[node])})'
                 if node in self.parents else
                 f'P({node})'
@@ -270,11 +270,11 @@ class BayesNet:
                 sample_node_value(node=parent, sample=sample, visited=visited)
 
             if node not in sample:
-                cpt = self.cpts[node]
+                P = self.P[node]
                 if node in self.parents:
                     condition = tuple(sample[parent] for parent in self.parents[node])
-                    cpt = cpt.cpt[condition]
-                sample[node] = cpt.cpt.sample()
+                    P = P.cdt[condition]
+                sample[node] = P.cdt.sample()
 
         sample = init.copy() if init else {}
         visited = set()
@@ -308,32 +308,32 @@ class BayesNet:
         # Compute the conditional distribution for each node that has parents
         for child, parents in self.parents.items():
 
-            # If a CPT already exists, then we update it...
-            if child in self.cpts:
-                old_counts = self.cpts[child] * self._cpt_sizes[child]
+            # If a P already exists, then we update it...
+            if child in self.P:
+                old_counts = self.P[child] * self._P_sizes[child]
                 new_counts = X.groupby(parents)[child].value_counts()
                 counts = old_counts.combine(new_counts, operator.add, fill_value=0)
-                self.cpts[child] = counts.groupby(parents).apply(lambda x: x / x.sum())
-                self._cpt_sizes[child] = counts.groupby(parents).sum()
+                self.P[child] = counts.groupby(parents).apply(lambda x: x / x.sum())
+                self._P_sizes[child] = counts.groupby(parents).sum()
 
             # ... else we compute it from scratch
             else:
-                self.cpts[child] = X.groupby(parents)[child].value_counts(normalize=True)
-                self._cpt_sizes[child] = X.groupby(parents).size()
+                self.P[child] = X.groupby(parents)[child].value_counts(normalize=True)
+                self._P_sizes[child] = X.groupby(parents).size()
 
         # Compute the distribution for each orphan (i.e. the roots)
         for orphan in set(self.nodes) - set(self.parents):
 
-            if orphan in self.cpts:
-                old_counts = self.cpts[orphan] * self._cpt_sizes[orphan]
+            if orphan in self.P:
+                old_counts = self.P[orphan] * self._P_sizes[orphan]
                 new_counts = X[orphan].value_counts()
                 counts = old_counts.combine(new_counts, operator.add, fill_value=0)
-                self._cpt_sizes[orphan] += len(X)
-                self.cpts[orphan] = counts / self._cpt_sizes[orphan]
+                self._P_sizes[orphan] += len(X)
+                self.P[orphan] = counts / self._P_sizes[orphan]
 
             else:
-                self.cpts[orphan] = X[orphan].value_counts(normalize=True)
-                self._cpt_sizes[orphan] = len(X)
+                self.P[orphan] = X[orphan].value_counts(normalize=True)
+                self._P_sizes[orphan] = len(X)
 
         self.prepare()
 
@@ -341,8 +341,8 @@ class BayesNet:
 
     def fit(self, X: pd.DataFrame):
         """Find the values of each conditional distribution."""
-        self.cpts = {}
-        self._cpt_sizes = {}
+        self.P = {}
+        self._P_sizes = {}
         return self.partial_fit(X)
 
     def _rejection_sampling(self, *query, event, n_iterations):
@@ -424,11 +424,11 @@ class BayesNet:
             # Compute the likelihood of this sample
             weight = 1.
             for var, val in event.items():
-                cpt = self.cpts[var]
+                P = self.P[var]
                 if var in self.parents:
                     condition = tuple(sample[p] for p in self.parents[var])
-                    cpt = cpt.cpt[condition]
-                weight *= cpt.get(val, 0)
+                    P = P.cdt[condition]
+                weight *= P.get(val, 0)
 
                 if weight == 0:
                     break
@@ -480,9 +480,9 @@ class BayesNet:
         nonevents = sorted(set(self.nodes) - set(event))
         for node in nonevents:
 
-            post = self.cpts[node]
+            post = self.P[node]
             for child in self.children.get(node, ()):
-                post = pointwise_mul(post, self.cpts[child])
+                post = pointwise_mul(post, self.P[child])
 
             blanket = list(post.index.names)  # Markov blanket
             blanket.remove(node)
@@ -504,11 +504,11 @@ class BayesNet:
             var = next(cycle)
 
             # Sample from P(var | blanket(var))
-            cpt = posteriors[var]
+            P = posteriors[var]
             condition = tuple(state[node] for node in blankets[var])
             if condition:
-                cpt = cpt.cpt[condition]
-            val = cpt.cpt.sample()
+                P = P.cdt[condition]
+            val = P.cdt.sample()
             state[var] = val
 
             # Record the current state
@@ -549,7 +549,7 @@ class BayesNet:
 
         factors = []
         for node in relevant:
-            factor = self.cpts[node].copy()
+            factor = self.P[node].copy()
             # Filter each factor according to the event
             for var, val in event.items():
                 if var in factor.index.names:
@@ -567,7 +567,7 @@ class BayesNet:
                     if node in factors[i].index.names
                 )
             )
-            prod = sum_out(prod, node)
+            prod = sum_out(P=prod, var=node)
             factors.append(prod)
 
         # Pointwise multiply the rest of the factors and normalize the result
@@ -721,7 +721,8 @@ class BayesNet:
             dtype: float64
 
         """
-        fjd = functools.reduce(pointwise_mul, self.cpts.values())
+
+        fjd = functools.reduce(pointwise_mul, self.P.values())
         fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
         return fjd / fjd.sum()
@@ -740,6 +741,6 @@ class BayesNet:
             X: Samples.
 
         """
+
         fjd = self.full_joint_dist().reorder_levels(X.columns)
-        probas = fjd[pd.MultiIndex.from_frame(X)]
-        return np.log(probas)
+        return fjd[pd.MultiIndex.from_frame(X)]
