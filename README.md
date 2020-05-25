@@ -12,15 +12,15 @@ The main goal of this project is to be used for educational purposes. As such, m
 - [Table of contents](#table-of-contents)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [✍️ Manual definition](#%e2%9c%8d%ef%b8%8f-manual-definition)
-  - [🔮 Probabilistic inference](#%f0%9f%94%ae-probabilistic-inference)
-  - [❓ Missing value imputation](#%e2%9d%93-missing-value-imputation)
-  - [🎲 Random sampling](#%f0%9f%8e%b2-random-sampling)
-  - [🧮 Parameter estimation](#%f0%9f%a7%ae-parameter-estimation)
-  - [🧱 Structure learning](#%f0%9f%a7%b1-structure-learning)
-  - [👀 Visualization](#%f0%9f%91%80-visualization)
-  - [👁️ Graphical user interface](#%f0%9f%91%81%ef%b8%8f-graphical-user-interface)
-  - [🔢 Support for continuous variables](#%f0%9f%94%a2-support-for-continuous-variables)
+  - [✍️ Manual definition](#️-manual-definition)
+  - [🔮 Probabilistic inference](#-probabilistic-inference)
+  - [❓ Missing value imputation](#-missing-value-imputation)
+  - [🎲 Random sampling](#-random-sampling)
+  - [🧮 Parameter estimation](#-parameter-estimation)
+  - [🧱 Structure learning](#-structure-learning)
+  - [👀 Visualization](#-visualization)
+  - [👁️ Graphical user interface](#️-graphical-user-interface)
+  - [🔢 Support for continuous variables](#-support-for-continuous-variables)
 - [Toy networks](#toy-networks)
 - [Development](#development)
 - [License](#license)
@@ -65,19 +65,19 @@ You can also use the following notation, which is slightly more terse:
 
 ```
 
-In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table) are given. Therefore, we can define them manually by setting the values of the `cpts` attribute:
+In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table) are given. Therefore, we can define them manually by setting the values of the `P` attribute:
 
 ```python
 >>> import pandas as pd
 
 # P(Burglary)
->>> bn.cpts['Burglary'] = pd.Series({False: .999, True: .001})
+>>> bn.P['Burglary'] = pd.Series({False: .999, True: .001})
 
 # P(Earthquake)
->>> bn.cpts['Earthquake'] = pd.Series({False: .998, True: .002})
+>>> bn.P['Earthquake'] = pd.Series({False: .998, True: .002})
 
 # P(Alarm | Burglary, Earthquake)
->>> bn.cpts['Alarm'] = pd.Series({
+>>> bn.P['Alarm'] = pd.Series({
 ...     (True, True, True): .95,
 ...     (True, True, False): .05,
 ...
@@ -92,7 +92,7 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 ... })
 
 # P(John calls | Alarm)
->>> bn.cpts['John calls'] = pd.Series({
+>>> bn.P['John calls'] = pd.Series({
 ...     (True, True): .9,
 ...     (True, False): .1,
 ...     (False, True): .05,
@@ -100,7 +100,7 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 ... })
 
 # P(Mary calls | Alarm)
->>> bn.cpts['Mary calls'] = pd.Series({
+>>> bn.P['Mary calls'] = pd.Series({
 ...     (True, True): .7,
 ...     (True, False): .3,
 ...     (False, True): .01,
@@ -109,7 +109,7 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 
 ```
 
-The `prepare` method has to be called whenever the structure and/or the CPTs are manually specified. This will do some house-keeping and make sure everything is sound. Just like brushing your teeth, it is not compulsory but highly recommended.
+The `prepare` method has to be called whenever the structure and/or the P are manually specified. This will do some house-keeping and make sure everything is sound. Just like brushing your teeth, it is not compulsory but highly recommended.
 
 ```python
 >>> bn.prepare()
@@ -225,7 +225,7 @@ You can use a Bayesian network to generate random samples. The samples will foll
 
 ### 🧮 Parameter estimation
 
-You can determine the values of the CPTs from a dataset. This is a straightforward procedure, as it only requires perfoming a [`groupby`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html) followed by a [`value_counts`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.value_counts.html) for each CPT.
+You can determine the values of the P from a dataset. This is a straightforward procedure, as it only requires perfoming a [`groupby`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html) followed by a [`value_counts`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.value_counts.html) for each CPT.
 
 ```python
 >>> samples = bn.sample(1000)
@@ -302,6 +302,7 @@ Several toy networks are available to fool around with:
 
 - 🚨 `load_alarm` — the alarm network introduced by Judea Pearl.
 - 🐉 `load_asia` — a popular example introduced in [*Local computations with probabilities on graphical structures and their application to expert systems*](https://www.jstor.org/stable/2345762).
+- 🎓 `load_grades` — an [example](https://ermongroup.github.io/cs228-notes/representation/directed/) from Stanford's CS 228 class.
 - 💦 `load_sprinkler` — the network used in chapter 14 of [*Artificial Intelligence: A Modern Approach (3rd edition)*](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=2&ved=2ahUKEwj5mv3s9rLpAhU3D2MBHc0zARIQFjABegQIAhAB&url=https%3A%2F%2Ffaculty.psau.edu.sa%2Ffiledownload%2Fdoc-7-pdf-a154ffbcec538a4161a406abf62f5b76-original.pdf&usg=AOvVaw0i7pLrlBs9LMW296xeV6b0).
 
 Here is some example usage:
