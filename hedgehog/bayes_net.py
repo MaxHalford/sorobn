@@ -718,13 +718,14 @@ class BayesNet:
                                       True         0.3240
                            True       False        0.0004
                                       True         0.0396
-            dtype: float64
+            Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
 
         """
 
         fjd = functools.reduce(pointwise_mul, self.P.values())
         fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
+        fjd.name = f'P({", ".join(fjd.index.names)})'
         return fjd / fjd.sum()
 
     def predict_proba(self, X: pd.DataFrame) -> pd.Series:

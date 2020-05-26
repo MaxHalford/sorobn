@@ -76,3 +76,49 @@ def check_Ps(bn):
 ])
 def test(bn, check):
     check(bn)
+
+
+def test_independent_nodes():
+    """
+
+    >>> bn = hh.BayesNet()
+
+    >>> bn.P['A'] = pd.Series({1: .2, 2: .3, 3: .5})
+    >>> bn.P['B'] = pd.Series({1: .4, 2: .2, 3: .4})
+    >>> bn.prepare()
+
+    >>> bn.full_joint_dist()
+    A  B
+    1  1    0.08
+       2    0.04
+       3    0.08
+    2  1    0.12
+       2    0.06
+       3    0.12
+    3  1    0.20
+       2    0.10
+       3    0.20
+    Name: P(A, B), dtype: float64
+
+    >>> bn.query('A', event={'B': 1})
+    A
+    1    0.2
+    2    0.3
+    3    0.5
+    Name: P(A), dtype: float64
+
+    >>> bn.query('A', event={'B': 2})
+    A
+    1    0.2
+    2    0.3
+    3    0.5
+    Name: P(A), dtype: float64
+
+    >>> bn.query('A', event={'B': 3})
+    A
+    1    0.2
+    2    0.3
+    3    0.5
+    Name: P(A), dtype: float64
+
+    """
