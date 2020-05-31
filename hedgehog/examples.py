@@ -246,6 +246,32 @@ def load_sprinkler() -> hh.BayesNet:
 
 
 def load_grades():
+    """Load the student grades network.
+
+    Example:
+
+        >>> import hedgehog as hh
+
+        >>> bn = hh.load_grades()
+
+        >>> bn.nodes
+        ['Difficulty', 'Grade', 'Intelligence', 'Letter', 'SAT']
+
+        >>> bn.children
+        {'Difficulty': ['Grade'], 'Intelligence': ['Grade', 'SAT'], 'Grade': ['Letter']}
+
+        >>> bn.parents
+        {'Grade': ['Difficulty', 'Intelligence'], 'SAT': ['Intelligence'], 'Letter': ['Grade']}
+
+        >>> bn.query('Letter', 'SAT', event={'Intelligence': 'Smart'})
+        Letter  SAT
+        Strong  Failure    0.153544
+                Success    0.614176
+        Weak    Failure    0.046456
+                Success    0.185824
+        Name: P(Letter, SAT), dtype: float64
+
+    """
 
     bn = hh.BayesNet(
         ('Difficulty', 'Grade'),
