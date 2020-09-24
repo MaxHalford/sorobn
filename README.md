@@ -251,7 +251,7 @@ This isn't available yet. I kind of know what I'm doing and there are some sweet
 
 ### 👀 Visualization
 
-You can use the `graphviz` method to return a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph).
+You can use the `graphviz` method to obtain a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph) representation.
 
 ```python
 >>> bn = hh.load_asia()

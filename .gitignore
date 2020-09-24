@@ -130,3 +130,8 @@ dmypy.json
 
 # MacOS
 .DS_Store
+
+# Testing
+*.svg
+.ipynb_checkpoints/
+*.ipynb

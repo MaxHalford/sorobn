@@ -1,6 +1,8 @@
 import copy
 import importlib
 import inspect
+import math
+import random
 
 import numpy as np
 import pandas as pd
@@ -45,7 +47,7 @@ def check_sample_one(bn):
 
 def check_full_joint_dist(bn):
     fjd = bn.full_joint_dist()
-    assert fjd.sum() == 1
+    assert math.isclose(fjd.sum(), 1)
     assert sorted(fjd.index.names) == sorted(bn.nodes)
 
 
@@ -63,15 +65,47 @@ def check_Ps(bn):
         assert P.sum() == 1
 
 
+def check_query(bn):
+    """Checks that the query function works for every algorithm."""
+
+    fjd = bn.full_joint_dist()
+    event = dict(zip(fjd.index.names, fjd.index[0]))
+    query = random.choice(list(event))
+    del event[query]
+
+    for algorithm in ('exact', 'gibbs', 'likelihood', 'rejection'):
+        bn.query(query, event=event, algorithm=algorithm)
+
+
+def load_naive():
+    bn = hh.BayesNet('A', 'B', 'C')
+    bn.P['A'] = pd.Series({True: .1, False: .9})
+    bn.P['B'] = pd.Series({True: .3, False: .7})
+    bn.P['C'] = pd.Series({True: .5, False: .5})
+    bn.prepare()
+    return bn
+
+
 @pytest.mark.parametrize('bn, check', [
-    pytest.param(bn(), check, id=f"{'_'.join(bn.__name__.split('_')[1:])}:{check.__name__}")
-    for _, bn in inspect.getmembers(importlib.import_module('hedgehog.examples'), inspect.isfunction)
+    pytest.param(
+        loader(),
+        check,
+        id=f"{'_'.join(loader.__name__.split('_')[1:])}:{check.__name__}"
+    )
+    for loader in (
+        *dict(inspect.getmembers(
+            importlib.import_module('hedgehog.examples'),
+            inspect.isfunction)
+        ).values(),
+        load_naive
+    )
     for check in (
         check_partial_fit,
         check_sample_many,
         check_sample_one,
         check_full_joint_dist,
-        check_Ps
+        check_Ps,
+        check_query
     )
 ])
 def test(bn, check):

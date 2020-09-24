@@ -203,12 +203,16 @@ class BayesNet:
 
     """
 
-    def __init__(self, *edges):
+    def __init__(self, *entries):
 
         def coerce_iter(obj):
             if isinstance(obj, tuple):
                 return obj
             return (obj,)
+
+        # We separate the orphans (which are scalars) from the edges (which are tuples)
+        edges = (e for e in entries if isinstance(e, tuple))
+        orphans = set(e for e in entries if not isinstance(e, tuple))
 
         # Convert edges into children and parent connections
         parents = collections.defaultdict(list)
@@ -223,7 +227,7 @@ class BayesNet:
         self.parents = {k: list(collections.OrderedDict.fromkeys(v)) for k, v in parents.items()}
         self.children = {k: list(collections.OrderedDict.fromkeys(v)) for k, v in children.items()}
 
-        self.nodes = sorted({*parents.keys(), *children.keys()})
+        self.nodes = sorted({*parents.keys(), *children.keys(), *orphans})
         self.P = {}
         self._P_sizes = {}
 
@@ -447,12 +451,12 @@ class BayesNet:
     def _gibbs_sampling(self, *query, event, n_iterations):
         """Gibbs sampling.
 
-        The mathematical details of why this works is quite involved, but the idea is quite simple.
-        We start with a random sample where the event variables are specified. Every iteration,
-        we pick a random variable that is not part of the event variables, and sample it randomly.
-        The sampling is conditionned on the current state of the sample, which requires computing
-        the conditional distribution of each variable with respect to it's Markov blanket. Every
-        time a random value is sampled, we update the current state and record it.
+        The mathematical details of why this works are quite involved, but the idea is quite
+        simple. We start with a random sample where the event variables are specified. Every
+        iteration, we pick a random variable that is not part of the event variables, and sample it
+        randomly. The sampling is conditionned on the current state of the sample, which requires
+        computing the conditional distribution of each variable with respect to it's Markov
+        blanket. Every time a random value is sampled, we update the current state and record it.
 
         Example:
 
@@ -478,6 +482,7 @@ class BayesNet:
         posteriors = {}
         blankets = {}
         nonevents = sorted(set(self.nodes) - set(event))
+
         for node in nonevents:
 
             post = self.P[node]
@@ -486,8 +491,9 @@ class BayesNet:
 
             blanket = list(post.index.names)  # Markov blanket
             blanket.remove(node)
-            post = post.groupby(blanket).apply(lambda g: g / g.sum())
-            post = post.reorder_levels([*blanket, node])
+            if blanket:
+                post = post.groupby(blanket).apply(lambda g: g / g.sum())
+                post = post.reorder_levels([*blanket, node])
             post = post.sort_index()
             posteriors[node] = post
             blankets[node] = blanket
@@ -595,7 +601,8 @@ class BayesNet:
             query: The variables for which the posterior distribution is inferred.
             event: The information on which to condition the answer. This can also be referred to
                 as the "evidence".
-            algorithm: Inference method to use.
+            algorithm: Inference method to use. Possible choices are: exact, gibbs, likelihood,
+                rejection.
             n_iterations: Number of iterations to perform when using an approximate inference
                 method.
 
@@ -615,6 +622,13 @@ class BayesNet:
             Name: P(Lung cancer, Tuberculosis), dtype: float64
 
         """
+
+        if not query:
+            raise ValueError('At least one query variable has to be specified')
+
+        for q in query:
+            if q in event:
+                raise ValueError('A query variable cannot be part of the event')
 
         if algorithm == 'exact':
             answer = self._variable_elimination(*query, event=event)
@@ -682,17 +696,27 @@ class BayesNet:
 
         G = graphviz.Digraph()
 
+        for node in self.nodes:
+            G.node(node)
+
         for node, children in self.children.items():
             for child in children:
                 G.edge(node, child)
 
         return G
 
-    def full_joint_dist(self) -> pd.DataFrame:
+    def _repr_svg_(self):
+        return self.graphviz()._repr_svg_()
+
+    def full_joint_dist(self, drop_zeros=True) -> pd.DataFrame:
         """Return the full joint distribution.
 
         The full joint distribution is obtained by pointwise multiplying all the conditional
         probability tables with each other and normalizing the result.
+
+        Parameters:
+            drop_zeros: Determines whether or not only the cases that occur at least once should be
+                included.
 
         Example:
 
@@ -701,6 +725,27 @@ class BayesNet:
             >>> bn = hh.load_sprinkler()
 
             >>> bn.full_joint_dist()
+            Cloudy  Rain   Sprinkler  Wet grass
+            False   False  False      False        0.2000
+                           True       False        0.0200
+                                      True         0.1800
+                    True   False      False        0.0050
+                                      True         0.0450
+                           True       False        0.0005
+                                      True         0.0495
+            True    False  False      False        0.0900
+                           True       False        0.0010
+                                      True         0.0090
+                    True   False      False        0.0360
+                                      True         0.3240
+                           True       False        0.0004
+                                      True         0.0396
+            Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
+
+            The cases that don't occur are excluded by default. They can be included by setting
+            the `drop_zeros` parameter to `False`.
+
+            >>> bn.full_joint_dist(drop_zeros=False)
             Cloudy  Rain   Sprinkler  Wet grass
             False   False  False      False        0.2000
                                       True         0.0000
@@ -722,17 +767,21 @@ class BayesNet:
 
         """
 
-        fjd = functools.reduce(pointwise_mul, self.P.values())
+        dists = self.P.values()
+        if drop_zeros:
+            dists = (d[d > 0] for d in dists)
+
+        fjd = functools.reduce(pointwise_mul, dists)
         fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
         fjd.name = f'P({", ".join(fjd.index.names)})'
         return fjd / fjd.sum()
 
     def predict_proba(self, X: pd.DataFrame) -> pd.Series:
-        """Return probability estimates.
+        """Return likelihood estimates.
 
         The probabilities are obtained by first computing the full joint distribution. Then, the
-        probability of sample is retrived by accessing the relevant row in the full joint
+        likelihood of a sample is retrieved by accessing the relevant row in the full joint
         distribution.
 
         This method is a stepping stone for other functionalities, such as computing the
