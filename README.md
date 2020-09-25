@@ -110,7 +110,7 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 
 ```
 
-The `prepare` method has to be called whenever the structure and/or the P are manually specified. This will do some house-keeping and make sure everything is sound. It is not compulsory but highly recommended, just like brushing your teeth
+The `prepare` method has to be called whenever the structure and/or the P are manually specified. This will do some house-keeping and make sure everything is sound. It is not compulsory but highly recommended, just like brushing your teeth.
 
 ```python
 >>> bn.prepare()
