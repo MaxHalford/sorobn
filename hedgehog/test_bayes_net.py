@@ -112,11 +112,10 @@ def test(bn, check):
     check(bn)
 
 
-def test_independent_nodes():
-    """
+def test_indep_vars():
+    """This doctest checks that querying with independent variables works as expected.
 
     >>> bn = hh.BayesNet()
-
     >>> bn.P['A'] = pd.Series({1: .2, 2: .3, 3: .5})
     >>> bn.P['B'] = pd.Series({1: .4, 2: .2, 3: .4})
     >>> bn.prepare()

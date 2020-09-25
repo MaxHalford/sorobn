@@ -132,6 +132,5 @@ dmypy.json
 .DS_Store
 
 # Testing
-*.svg
 .ipynb_checkpoints/
 *.ipynb

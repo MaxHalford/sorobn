@@ -109,10 +109,21 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 
 ```
 
-The `prepare` method has to be called whenever the structure and/or the P are manually specified. This will do some house-keeping and make sure everything is sound. Just like brushing your teeth, it is not compulsory but highly recommended.
+The `prepare` method has to be called whenever the structure and/or the P are manually specified. This will do some house-keeping and make sure everything is sound. It is not compulsory but highly recommended, just like brushing your teeth
 
 ```python
 >>> bn.prepare()
+
+```
+
+Note that you are allowed to specify variables that have no dependencies with any other variable:
+
+```python
+>>> _ = hh.BayesNet(
+...     ('Cloud', 'Rain'),
+...     (('Rain', 'Cold'), 'Snow'),
+...     'Wind speed'  # has no dependencies
+... )
 
 ```
 

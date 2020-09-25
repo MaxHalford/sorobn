@@ -29,7 +29,7 @@ class CDTAccessor:
     def sample(self):
         """Sample a row at random.
 
-        The `sample` method of a series is very slow. Additionally, it is not designed to be used
+        The `sample` method of a Series is very slow. Additionally, it is not designed to be used
         repetitively and requires O(n) steps every time it is called. Instead, we use a Cython
         implemention of Vose's alias method that takes O(n) time to build and O(1) time to query.
 
@@ -298,8 +298,8 @@ class BayesNet:
         each parent, we can pick the according distribution and sample from it.
 
         Parameters:
-            n: Number of samples to produce. A dataframe is returned if `n > 1`. A dictionary is
-                returned if `n <= 1`.
+            n: Number of samples to produce. A DataFrame is returned if `n > 1`. A dictionary is
+                returned if not.
 
         """
         if n > 1:
@@ -546,8 +546,8 @@ class BayesNet:
 
         # We start by determining which nodes can be discarded. We can remove any leaf node that is
         # part of query variable(s) or the event variable(s). After a leaf node has been removed,
-        # there might be some more leaf nodes to be remove, etc. Differently put, we can ignore
-        # every node that isn't an ancestor of the query variable(s) or the event variable(s).
+        # there might be some more leaf nodes to be remove, etc. Said otherwise, we can ignore each
+        # node that isn't an ancestor of the query variable(s) or the event variable(s).
         relevant = {*query, *event}
         for node in list(relevant):
             relevant |= self.ancestors(node)
@@ -794,3 +794,12 @@ class BayesNet:
 
         fjd = self.full_joint_dist().reorder_levels(X.columns)
         return fjd[pd.MultiIndex.from_frame(X)]
+
+    def predict_log_proba(self, X: pd.DataFrame) -> pd.Series:
+        """Return log-likelihood estimates.
+
+        Parameters:
+            X: Samples.
+
+        """
+        return np.log(self.predict_proba(X))
