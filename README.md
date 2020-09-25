@@ -15,6 +15,7 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [✍️ Manual definition](#️-manual-definition)
   - [🔮 Probabilistic inference](#-probabilistic-inference)
   - [❓ Missing value imputation](#-missing-value-imputation)
+  - [🤷 Likelihood estimation](#-likelihood-estimation)
   - [🎲 Random sampling](#-random-sampling)
   - [🧮 Parameter estimation](#-parameter-estimation)
   - [🧱 Structure learning](#-structure-learning)
@@ -133,7 +134,8 @@ A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generativ
 
 > What is the likelihood of there being a burglary if both John and Mary call?
 
-This question can be answered by using the `query` method, which returns the probability distribution for the possible outcomes.
+This question can be answered by using the `query` method, which returns the probability distribution for the possible outcomes. Otherwise said, The the `query` method can be used to look at a query variable's distribution conditioned on a given event. This can denoted by `P(query | event)`.
+
 
 ```python
 >>> bn.query('Burglary', event={'Mary calls': True, 'John calls': True})
@@ -211,6 +213,49 @@ A usecase for probabilistic inference is to impute missing values. The `impute` 
 ```
 
 Note that the `impute` method can be seen as the equivalent of [`pomegranate`'s `predict` method](https://pomegranate.readthedocs.io/en/latest/BayesianNetwork.html#prediction).
+
+### 🤷 Likelihood estimation
+
+You can estimate the likelihood of an event with the `predict_proba` method:
+
+```py
+>>> event = {
+...     'Alarm': False,
+...     'Burglary': False,
+...     'Earthquake': False,
+...     'John calls': False,
+...     'Mary calls': False
+... }
+
+>>> bn.predict_proba(event)
+0.936742...
+
+```
+
+In other words, `predict_proba` computes `P(event)`, whereas the `query` method computes `P(query | event)`).
+
+Note that you can also pass a bunch of events to `predict_proba`, as so:
+
+```py
+>>> events = pd.DataFrame([
+...     {'Alarm': False, 'Burglary': False, 'Earthquake': False,
+...      'John calls': False, 'Mary calls': False},
+...
+...     {'Alarm': False, 'Burglary': False, 'Earthquake': False,
+...      'John calls': True, 'Mary calls': False},
+...
+...     {'Alarm': True, 'Burglary': True, 'Earthquake': True,
+...      'John calls': True, 'Mary calls': True}
+... ])
+
+>>> bn.predict_proba(events)
+Alarm  Burglary  Earthquake  John calls  Mary calls
+False  False     False       False       False         0.936743
+                             True        False         0.049302
+True   True      True        True        True          0.000001
+Name: P(Alarm, Burglary, Earthquake, John calls, Mary calls), dtype: float64
+
+```
 
 ### 🎲 Random sampling
 

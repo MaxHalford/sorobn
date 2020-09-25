@@ -777,7 +777,7 @@ class BayesNet:
         fjd.name = f'P({", ".join(fjd.index.names)})'
         return fjd / fjd.sum()
 
-    def predict_proba(self, X: pd.DataFrame) -> pd.Series:
+    def predict_proba(self, X: typing.Union[dict, pd.DataFrame]) -> pd.Series:
         """Return likelihood estimates.
 
         The probabilities are obtained by first computing the full joint distribution. Then, the
@@ -788,9 +788,12 @@ class BayesNet:
         log-likelihood. The latter can in turn be used for structure learning.
 
         Parameters:
-            X: Samples.
+            X: One or more samples.
 
         """
+
+        if isinstance(X, dict):
+            return self.predict_proba(pd.DataFrame([X])).iloc[0]
 
         fjd = self.full_joint_dist().reorder_levels(X.columns)
         return fjd[pd.MultiIndex.from_frame(X)]
