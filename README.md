@@ -12,7 +12,7 @@ The main goal of this project is to be used for educational purposes. As such, m
 - [Table of contents](#table-of-contents)
 - [Installation](#installation)
 - [Usage](#usage)
-  - [✍️ Manual definition](#️-manual-definition)
+  - [✍️ Manual structures](#️-manual-structures)
   - [🔮 Probabilistic inference](#-probabilistic-inference)
   - [❓ Missing value imputation](#-missing-value-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
@@ -38,9 +38,9 @@ Note that under the hood `hedgehog` uses [`vose`](https://github.com/MaxHalford/
 
 ## Usage
 
-### ✍️ Manual definition
+### ✍️ Manual structures
 
-The central construct in `hedgehog` is the `BayesNet` class. The edges of the network can be provided manually when initialising a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
+The central construct in `hedgehog` is the `BayesNet` class. A Bayesian network's structure can be manually defined by instantiating a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
 
 ```python
 >>> import hedgehog as hh
@@ -54,7 +54,7 @@ The central construct in `hedgehog` is the `BayesNet` class. The edges of the ne
 
 ```
 
-You can also use the following notation, which is slightly more terse:
+You may also use the following notation, which is slightly more terse:
 
 ```python
 >>> import hedgehog as hh
@@ -310,7 +310,7 @@ This isn't available yet. I kind of know what I'm doing and there are some sweet
 You can use the `graphviz` method to obtain a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph) representation.
 
 ```python
->>> bn = hh.load_asia()
+>>> bn = hh.examples.asia()
 >>> dot = bn.graphviz()
 >>> path = dot.render('asia', directory='figures', format='svg', cleanup=True)
 
@@ -354,17 +354,17 @@ To summarize, we prefer to give the user the flexibility to discretize the varia
 
 ## Toy networks
 
-Several toy networks are available to fool around with:
+Several toy networks are available to fool around with in the `examples` submodule:
 
-- 🚨 `load_alarm` — the alarm network introduced by Judea Pearl.
-- 🐉 `load_asia` — a popular example introduced in [*Local computations with probabilities on graphical structures and their application to expert systems*](https://www.jstor.org/stable/2345762).
-- 🎓 `load_grades` — an [example](https://ermongroup.github.io/cs228-notes/representation/directed/) from Stanford's CS 228 class.
-- 💦 `load_sprinkler` — the network used in chapter 14 of [*Artificial Intelligence: A Modern Approach (3rd edition)*](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=2&ved=2ahUKEwj5mv3s9rLpAhU3D2MBHc0zARIQFjABegQIAhAB&url=https%3A%2F%2Ffaculty.psau.edu.sa%2Ffiledownload%2Fdoc-7-pdf-a154ffbcec538a4161a406abf62f5b76-original.pdf&usg=AOvVaw0i7pLrlBs9LMW296xeV6b0).
+- 🚨 `alarm` — the alarm network introduced by Judea Pearl.
+- 🐉 `asia` — a popular example introduced in [*Local computations with probabilities on graphical structures and their application to expert systems*](https://www.jstor.org/stable/2345762).
+- 🎓 `grades` — an [example](https://ermongroup.github.io/cs228-notes/representation/directed/) from Stanford's CS 228 class.
+- 💦 `sprinkler` — the network used in chapter 14 of [*Artificial Intelligence: A Modern Approach (3rd edition)*](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=2&ved=2ahUKEwj5mv3s9rLpAhU3D2MBHc0zARIQFjABegQIAhAB&url=https%3A%2F%2Ffaculty.psau.edu.sa%2Ffiledownload%2Fdoc-7-pdf-a154ffbcec538a4161a406abf62f5b76-original.pdf&usg=AOvVaw0i7pLrlBs9LMW296xeV6b0).
 
 Here is some example usage:
 
 ```python
->>> bn = hh.load_sprinkler()
+>>> bn = hh.examples.sprinkler()
 
 >>> bn.nodes
 ['Cloudy', 'Rain', 'Sprinkler', 'Wet grass']

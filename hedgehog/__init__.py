@@ -1,18 +1,14 @@
 import os
 
+from . import examples
+from . import structure
 from .bayes_net import BayesNet
-from .examples import load_alarm
-from .examples import load_asia
-from .examples import load_grades
-from .examples import load_sprinkler
 
 
 __all__ = [
+    'examples',
     'BayesNet',
-    'load_alarm',
-    'load_asia',
-    'load_grades',
-    'load_sprinkler'
+    'structure'
 ]
 
 

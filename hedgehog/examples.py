@@ -1,17 +1,17 @@
 import pandas as pd
 
-import hedgehog as hh
+from .bayes_net import BayesNet
 
 
 __all__ = [
-    'load_alarm',
-    'load_asia',
-    'load_grades',
-    'load_sprinkler'
+    'alarm',
+    'asia',
+    'grades',
+    'sprinkler'
 ]
 
 
-def load_alarm() -> hh.BayesNet:
+def alarm() -> BayesNet:
     """Load Judea Pearl's famous example.
 
     At the time of writing his seminal paper on Bayesian networks, Judea Pearl lived in California,
@@ -21,7 +21,7 @@ def load_alarm() -> hh.BayesNet:
 
         >>> import hedgehog as hh
 
-        >>> bn = hh.load_alarm()
+        >>> bn = hh.examples.alarm()
 
         >>> bn.query('John calls', 'Mary calls', event={'Burglary': True, 'Earthquake': False})
         John calls  Mary calls
@@ -33,7 +33,7 @@ def load_alarm() -> hh.BayesNet:
 
     """
 
-    bn = hh.BayesNet(
+    bn = BayesNet(
         ('Burglary', 'Alarm'),
         ('Earthquake', 'Alarm'),
         ('Alarm', 'John calls'),
@@ -82,14 +82,14 @@ def load_alarm() -> hh.BayesNet:
     return bn
 
 
-def load_asia() -> hh.BayesNet:
+def asia() -> BayesNet:
     """Load the Asia network.
 
     Example:
 
         >>> import hedgehog as hh
 
-        >>> bn = hh.load_asia()
+        >>> bn = hh.examples.asia()
 
         >>> bn.query('Lung cancer', event={'Visit to Asia': True, 'Smoker': False})
         Lung cancer
@@ -99,7 +99,7 @@ def load_asia() -> hh.BayesNet:
 
     """
 
-    bn = hh.BayesNet(
+    bn = BayesNet(
         ('Visit to Asia', 'Tuberculosis'),
         ('Smoker', ('Lung cancer', 'Bronchitis')),
         (('Tuberculosis', 'Lung cancer'), 'TB or cancer'),
@@ -180,7 +180,7 @@ def load_asia() -> hh.BayesNet:
     return bn
 
 
-def load_sprinkler() -> hh.BayesNet:
+def sprinkler() -> BayesNet:
     """Load the water sprinkler network.
 
     This example is taken from figure 14.12(a) of Artificial Intelligence: A Modern Approach.
@@ -189,7 +189,7 @@ def load_sprinkler() -> hh.BayesNet:
 
         >>> import hedgehog as hh
 
-        >>> bn = hh.load_sprinkler()
+        >>> bn = hh.examples.sprinkler()
 
         >>> bn.query('Rain', event={'Sprinkler': True})
         Rain
@@ -199,7 +199,7 @@ def load_sprinkler() -> hh.BayesNet:
 
     """
 
-    bn = hh.BayesNet(
+    bn = BayesNet(
         ('Cloudy', 'Sprinkler'),
         ('Cloudy', 'Rain'),
         ('Sprinkler', 'Wet grass'),
@@ -245,14 +245,14 @@ def load_sprinkler() -> hh.BayesNet:
     return bn
 
 
-def load_grades():
+def grades():
     """Load the student grades network.
 
     Example:
 
         >>> import hedgehog as hh
 
-        >>> bn = hh.load_grades()
+        >>> bn = hh.examples.grades()
 
         >>> bn.nodes
         ['Difficulty', 'Grade', 'Intelligence', 'Letter', 'SAT']
@@ -273,7 +273,7 @@ def load_grades():
 
     """
 
-    bn = hh.BayesNet(
+    bn = BayesNet(
         ('Difficulty', 'Grade'),
         ('Intelligence', 'Grade'),
         ('Intelligence', 'SAT'),

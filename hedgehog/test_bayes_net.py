@@ -77,7 +77,7 @@ def check_query(bn):
         bn.query(query, event=event, algorithm=algorithm)
 
 
-def load_naive():
+def naive():
     bn = hh.BayesNet('A', 'B', 'C')
     bn.P['A'] = pd.Series({True: .1, False: .9})
     bn.P['B'] = pd.Series({True: .3, False: .7})
@@ -88,16 +88,16 @@ def load_naive():
 
 @pytest.mark.parametrize('bn, check', [
     pytest.param(
-        loader(),
+        example(),
         check,
-        id=f"{'_'.join(loader.__name__.split('_')[1:])}:{check.__name__}"
+        id=f"{example.__name__}:{check.__name__}"
     )
-    for loader in (
+    for example in (
         *dict(inspect.getmembers(
             importlib.import_module('hedgehog.examples'),
             inspect.isfunction)
         ).values(),
-        load_naive
+        naive
     )
     for check in (
         check_partial_fit,

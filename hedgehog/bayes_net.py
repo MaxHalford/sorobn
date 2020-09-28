@@ -203,7 +203,7 @@ class BayesNet:
 
     """
 
-    def __init__(self, *entries):
+    def __init__(self, *structure):
 
         def coerce_iter(obj):
             if isinstance(obj, tuple):
@@ -211,8 +211,8 @@ class BayesNet:
             return (obj,)
 
         # We separate the orphans (which are scalars) from the edges (which are tuples)
-        edges = (e for e in entries if isinstance(e, tuple))
-        orphans = set(e for e in entries if not isinstance(e, tuple))
+        edges = (e for e in structure if isinstance(e, tuple))
+        orphans = set(e for e in structure if not isinstance(e, tuple))
 
         # Convert edges into children and parent connections
         parents = collections.defaultdict(list)
@@ -365,7 +365,7 @@ class BayesNet:
 
             >>> np.random.seed(42)
 
-            >>> bn = hh.load_sprinkler()
+            >>> bn = hh.examples.sprinkler()
 
             >>> event = {'Sprinkler': True}
             >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=500)
@@ -406,7 +406,7 @@ class BayesNet:
 
             >>> np.random.seed(42)
 
-            >>> bn = hh.load_sprinkler()
+            >>> bn = hh.examples.sprinkler()
 
             >>> event = {'Sprinkler': True}
             >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
@@ -465,7 +465,7 @@ class BayesNet:
 
             >>> np.random.seed(42)
 
-            >>> bn = hh.load_sprinkler()
+            >>> bn = hh.examples.sprinkler()
 
             >>> event = {'Sprinkler': True}
             >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
@@ -534,7 +534,7 @@ class BayesNet:
 
             >>> import hedgehog as hh
 
-            >>> bn = hh.load_sprinkler()
+            >>> bn = hh.examples.sprinkler()
 
             >>> bn.query('Rain', event={'Sprinkler': True}, algorithm='exact')
             Rain
@@ -610,7 +610,7 @@ class BayesNet:
 
             >>> import hedgehog as hh
 
-            >>> bn = hh.load_asia()
+            >>> bn = hh.examples.asia()
 
             >>> event = {'Visit to Asia': True, 'Smoker': True}
             >>> bn.query('Lung cancer', 'Tuberculosis', event=event)
@@ -722,7 +722,7 @@ class BayesNet:
 
             >>> import hedgehog as hh
 
-            >>> bn = hh.load_sprinkler()
+            >>> bn = hh.examples.sprinkler()
 
             >>> bn.full_joint_dist()
             Cloudy  Rain   Sprinkler  Wet grass
@@ -806,3 +806,29 @@ class BayesNet:
 
         """
         return np.log(self.predict_proba(X))
+
+    @property
+    def is_tree(self):
+        """Indicate whether or not the network is a tree.
+
+        Each node in a tree has at most one parent. Therefore, the network is not a tree if any of
+        its nodes has two or more parents.
+
+        Examples:
+
+            >>> import hedgehog as hh
+
+            >>> hh.BayesNet(
+            ...     ('a', 'b'),
+            ...     ('a', 'c')
+            ... ).is_tree
+            True
+
+            >>> hh.BayesNet(
+            ...     ('a', 'c'),
+            ...     ('b', 'c')
+            ... ).is_tree
+            False
+
+        """
+        return not any(len(parents) > 1 for parents in self.parents.values())

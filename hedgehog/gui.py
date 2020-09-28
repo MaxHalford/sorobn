@@ -1,3 +1,5 @@
+import inspect
+
 import hedgehog as hh
 import streamlit as st
 
@@ -7,14 +9,11 @@ import streamlit as st
 This is a little demo app for the [hedgehog library](https://github.com/MaxHalford/hedgehog).
 """
 
-loaders = {
-    l.split('_', 1)[1].capitalize(): eval(f'hh.{l}') for l in hh.__all__
-    if l.startswith('load_')
-}
+examples = dict(inspect.getmembers(hh.examples, inspect.isfunction))
 
-loader = st.selectbox('Pick a network', list(loaders.keys()))
+example = st.selectbox('Pick a network', list(examples.keys()))
 
-bn = loaders[loader]()
+bn = examples[example]()
 
 st.graphviz_chart(bn.graphviz())
 
