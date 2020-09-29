@@ -708,15 +708,15 @@ class BayesNet:
     def _repr_svg_(self):
         return self.graphviz()._repr_svg_()
 
-    def full_joint_dist(self, drop_zeros=True) -> pd.DataFrame:
+    def full_joint_dist(self, keep_zeros=False) -> pd.DataFrame:
         """Return the full joint distribution.
 
         The full joint distribution is obtained by pointwise multiplying all the conditional
         probability tables with each other and normalizing the result.
 
         Parameters:
-            drop_zeros: Determines whether or not only the cases that occur at least once should be
-                included.
+            keep_zeros: Determines whether or not to include value combinations that don't occur
+                together.
 
         Example:
 
@@ -743,9 +743,9 @@ class BayesNet:
             Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
 
             The cases that don't occur are excluded by default. They can be included by setting
-            the `drop_zeros` parameter to `False`.
+            the `keep_zeros` parameter to `True`.
 
-            >>> bn.full_joint_dist(drop_zeros=False)
+            >>> bn.full_joint_dist(keep_zeros=True)
             Cloudy  Rain   Sprinkler  Wet grass
             False   False  False      False        0.2000
                                       True         0.0000
@@ -768,7 +768,7 @@ class BayesNet:
         """
 
         dists = self.P.values()
-        if drop_zeros:
+        if not keep_zeros:
             dists = (d[d > 0] for d in dists)
 
         fjd = functools.reduce(pointwise_mul, dists)
