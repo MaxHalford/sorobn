@@ -31,6 +31,7 @@ The main goal of this project is to be used for educational purposes. As such, m
 You should be able to install and use this library with any Python version above 3.5.
 
 ```sh
+$ pip install git+https://github.com/MaxHalford/vose
 $ pip install git+https://github.com/MaxHalford/hedgehog
 ```
 

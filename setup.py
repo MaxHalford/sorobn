@@ -19,8 +19,7 @@ setup(
     packages=['hedgehog'],
     python_requires='>=3.6',
     install_requires=[
-        'pandas',
-        'vose @ git+https://github.com/MaxHalford/vose'
+        'pandas'
     ],
     extras_require={
         'dev': ['pytest'],
