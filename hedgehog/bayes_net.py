@@ -2,7 +2,6 @@ import collections
 import functools
 import itertools
 import operator
-import random
 import typing
 
 import numpy as np

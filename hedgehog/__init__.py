@@ -1,8 +1,8 @@
 import os
 
+from .bayes_net import BayesNet
 from . import examples
 from . import structure
-from .bayes_net import BayesNet
 
 
 __all__ = [
