@@ -101,9 +101,9 @@ def asia() -> BayesNet:
 
     bn = BayesNet(
         ('Visit to Asia', 'Tuberculosis'),
-        ('Smoker', ('Lung cancer', 'Bronchitis')),
-        (('Tuberculosis', 'Lung cancer'), 'TB or cancer'),
-        ('TB or cancer', ('Positive X-ray', 'Dispnea')),
+        ('Smoker', ['Lung cancer', 'Bronchitis']),
+        (['Tuberculosis', 'Lung cancer'], 'TB or cancer'),
+        ('TB or cancer', ['Positive X-ray', 'Dispnea']),
         ('Bronchitis', 'Dispnea')
     )
 

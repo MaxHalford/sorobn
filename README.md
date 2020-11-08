@@ -61,8 +61,8 @@ You may also use the following notation, which is slightly more terse:
 >>> import hedgehog as hh
 
 >>> bn = hh.BayesNet(
-...     (('Burglary', 'Earthquake'), 'Alarm'),
-...     ('Alarm', ('John calls', 'Mary calls'))
+...     (['Burglary', 'Earthquake'], 'Alarm'),
+...     ('Alarm', ['John calls', 'Mary calls'])
 ... )
 
 ```
@@ -123,7 +123,7 @@ Note that you are allowed to specify variables that have no dependencies with an
 ```python
 >>> _ = hh.BayesNet(
 ...     ('Cloud', 'Rain'),
-...     (('Rain', 'Cold'), 'Snow'),
+...     (['Rain', 'Cold'], 'Snow'),
 ...     'Wind speed'  # has no dependencies
 ... )
 
@@ -373,10 +373,10 @@ Here is some example usage:
 >>> pprint(bn.parents)
 {'Rain': ['Cloudy'],
  'Sprinkler': ['Cloudy'],
- 'Wet grass': ['Sprinkler', 'Rain']}
+ 'Wet grass': ['Rain', 'Sprinkler']}
 
 >>> pprint(bn.children)
-{'Cloudy': ['Sprinkler', 'Rain'],
+{'Cloudy': ['Rain', 'Sprinkler'],
  'Rain': ['Wet grass'],
  'Sprinkler': ['Wet grass']}
 

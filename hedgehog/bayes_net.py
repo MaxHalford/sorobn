@@ -204,29 +204,29 @@ class BayesNet:
 
     def __init__(self, *structure):
 
-        def coerce_iter(obj):
-            if isinstance(obj, tuple):
+        def coerce_list(obj):
+            if isinstance(obj, list):
                 return obj
-            return (obj,)
+            return [obj]
 
-        # We separate the orphans (which are scalars) from the edges (which are tuples)
+        # The structure is made up of nodes (scalars) and edges (tuples)
         edges = (e for e in structure if isinstance(e, tuple))
-        orphans = set(e for e in structure if not isinstance(e, tuple))
+        nodes = set(e for e in structure if not isinstance(e, tuple))
 
         # Convert edges into children and parent connections
-        parents = collections.defaultdict(list)
-        children = collections.defaultdict(list)
+        self.parents = collections.defaultdict(set)
+        self.children = collections.defaultdict(set)
 
-        for k, v in collections.OrderedDict.fromkeys(edges):  # remove duplicates and keep order
-            for parent, child in itertools.product(coerce_iter(k), coerce_iter(v)):
-                parents[child].append(parent)
-                children[parent].append(child)
+        for parents, children in edges:
+            for parent, child in itertools.product(coerce_list(parents), coerce_list(children)):
+                self.parents[child].add(parent)
+                self.children[parent].add(child)
 
-        # Remove duplicates
-        self.parents = {k: list(collections.OrderedDict.fromkeys(v)) for k, v in parents.items()}
-        self.children = {k: list(collections.OrderedDict.fromkeys(v)) for k, v in children.items()}
+        # collections.defaultdict(set) -> dict(list)
+        self.parents = {node: list(sorted(parents)) for node, parents in self.parents.items()}
+        self.children = {node: list(sorted(children)) for node, children in self.children.items()}
 
-        self.nodes = sorted({*parents.keys(), *children.keys(), *orphans})
+        self.nodes = sorted({*self.parents.keys(), *self.children.keys(), *nodes})
         self.P = {}
         self._P_sizes = {}
 
@@ -352,7 +352,7 @@ class BayesNet:
         """Answer a query using rejection sampling.
 
         This is probably the easiest approximate inference method to understand. The idea is simply
-        to produce a random sample and keep if it satisfies the specified event. The sample is
+        to produce a random sample and keep it if it satisfies the specified event. The sample is
         rejected if any part of the event is not consistent with the sample. The downside of this
         method is that it can potentially reject many samples, and therefore requires a large `n`
         in order to produce reliable estimates.
@@ -367,10 +367,10 @@ class BayesNet:
             >>> bn = hh.examples.sprinkler()
 
             >>> event = {'Sprinkler': True}
-            >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=500)
+            >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)
             Rain
-            False    0.691781
-            True     0.308219
+            False    0.678571
+            True     0.321429
             Name: P(Rain), dtype: float64
 
         """
