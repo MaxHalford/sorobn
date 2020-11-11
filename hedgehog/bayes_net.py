@@ -1,7 +1,6 @@
 import collections
 import functools
 import itertools
-import operator
 import typing
 
 import numpy as np
@@ -200,9 +199,19 @@ def sum_out(P: pd.Series, var: str) -> pd.Series:
 class BayesNet:
     """Bayesian network.
 
+    Parameters:
+        structure (list of tuples): Each tuple denotes a (parent, child) connection.
+        prior_count (int): If provided, artificial samples will be used to compute each conditional
+            probability distribution, in addition to provided samples. As a consequence, each
+            combination of parent(s)/child(ren) values will appear prior_count times. The
+            justification for doing so is related to Laplace's rule of succession and to Bayesian
+            statistics in general.
+
     """
 
-    def __init__(self, *structure):
+    def __init__(self, *structure, prior_count: int = None):
+
+        self.prior_count = prior_count
 
         def coerce_list(obj):
             if isinstance(obj, list):
@@ -245,30 +254,30 @@ class BayesNet:
                 inplace=True
             )
             P.name = (
-                f'P({node} | {", ".join(self.parents[node])})'
+                f'P({node} | {", ".join(map(str, self.parents[node]))})'
                 if node in self.parents else
                 f'P({node})'
             )
 
-    def _sample(self, init: dict = None):
-        """
+    def _forward_sample(self, init: dict = None):
+        """Perform forward sampling.
 
-        This method is not public because setting fixed values doesn't produce samples that follow
-        the network's distribution, which is an easy pit to fall into for users.
+        This is also known as "ancestral sampling", as well as "prior sampling".
 
         """
 
         def sample_node_value(node, sample, visited):
 
-            # If this node has been visisted, then that implies
-            # that it's parents and ancestors have been too, which means
-            # there is no point going further up the network.
+            # If this node has been visited, then that implies that it's parents and ancestors
+            # have been visited too, which means that there is no point in going further up the
+            # network.
             if node in visited:
                 return
+
             visited.add(node)
 
-            # At this point, we need to ensure that the sample contains a value for each
-            # parent node
+            # At this point, we need to ensure that the sample contains a value for each parent
+            # node
             for parent in self.parents.get(node, ()):
                 sample_node_value(node=parent, sample=sample, visited=visited)
 
@@ -302,8 +311,11 @@ class BayesNet:
 
         """
         if n > 1:
-            return pd.DataFrame(self._sample() for _ in range(n)).sort_index(axis='columns')
-        return self._sample()
+            return (
+                pd.DataFrame(self._forward_sample() for _ in range(n))
+                .sort_index(axis='columns')
+            )
+        return self._forward_sample()
 
     def partial_fit(self, X: pd.DataFrame):
         """Update the parameters of each conditional distribution."""
@@ -311,32 +323,39 @@ class BayesNet:
         # Compute the conditional distribution for each node that has parents
         for child, parents in self.parents.items():
 
-            # If a P already exists, then we update it...
+            # If a P already exists, then we update it incrementally...
             if child in self.P:
                 old_counts = self.P[child] * self._P_sizes[child]
-                new_counts = X.groupby(parents)[child].value_counts()
-                counts = old_counts.combine(new_counts, operator.add, fill_value=0)
-                self.P[child] = counts.groupby(parents).apply(lambda x: x / x.sum())
-                self._P_sizes[child] = counts.groupby(parents).sum()
+                new_counts = X.groupby(parents + [child]).size()
+                counts = old_counts.add(new_counts, fill_value=0)
 
             # ... else we compute it from scratch
             else:
-                self.P[child] = X.groupby(parents)[child].value_counts(normalize=True)
-                self._P_sizes[child] = X.groupby(parents).size()
+                counts = X.groupby(parents + [child]).size()
+                if self.prior_count:
+                    combos = itertools.product(*[X[var].unique() for var in parents + [child]])
+                    prior = pd.Series(1, pd.MultiIndex.from_tuples(combos, names=parents + [child]))
+                    counts = counts.add(prior, fill_value=0)
+
+            # Normalize
+            self._P_sizes[child] = counts.groupby(parents).size()
+            self.P[child] = counts / self._P_sizes[child]
 
         # Compute the distribution for each orphan (i.e. the roots)
         for orphan in set(self.nodes) - set(self.parents):
 
+            # Incremental update
             if orphan in self.P:
                 old_counts = self.P[orphan] * self._P_sizes[orphan]
                 new_counts = X[orphan].value_counts()
-                counts = old_counts.combine(new_counts, operator.add, fill_value=0)
+                counts = old_counts.add(new_counts, fill_value=0)
                 self._P_sizes[orphan] += len(X)
                 self.P[orphan] = counts / self._P_sizes[orphan]
 
+            # From scratch
             else:
-                self.P[orphan] = X[orphan].value_counts(normalize=True)
                 self._P_sizes[orphan] = len(X)
+                self.P[orphan] = X[orphan].value_counts(normalize=True)
 
         self.prepare()
 
@@ -396,7 +415,7 @@ class BayesNet:
         """Likelihood weighting.
 
         Likelihood weighting is a particular instance of importance sampling. The idea is to
-        produce random samples, and weight each sample according to it's likelihood.
+        produce random samples, and weight each sample according to its likelihood.
 
         Example:
 
@@ -422,7 +441,7 @@ class BayesNet:
         for i in range(n_iterations):
 
             # Sample by using the events as fixed values
-            sample = self._sample(init=event)
+            sample = self._forward_sample(init=event)
 
             # Compute the likelihood of this sample
             weight = 1.
@@ -498,7 +517,7 @@ class BayesNet:
             blankets[node] = blanket
 
         # Start with a random sample
-        state = self._sample(init=event)
+        state = self._forward_sample(init=event)
 
         samples = {var: [None] * n_iterations for var in query}
         cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
@@ -696,11 +715,11 @@ class BayesNet:
         G = graphviz.Digraph()
 
         for node in self.nodes:
-            G.node(node)
+            G.node(str(node))
 
         for node, children in self.children.items():
             for child in children:
-                G.edge(node, child)
+                G.edge(str(node), str(child))
 
         return G
 
@@ -831,3 +850,39 @@ class BayesNet:
 
         """
         return not any(len(parents) > 1 for parents in self.parents.values())
+
+    def markov_boundary(self, node):
+        """Return the Markov boundary of a node.
+
+        In a Bayesian network, the Markov boundary is a minimal Markov blanket. The Markov boundary
+        of a node includes its parents, children and the other parents of all of its children.
+
+        Example:
+
+            The following article is taken from the Markov blanket Wikipedia article.
+
+            >>> bn = BayesNet(
+            ...     (0, 3),
+            ...     (1, 4),
+            ...     (2, 5),
+            ...     (3, 6),
+            ...     (4, 6),
+            ...     (5, 8),
+            ...     (6, 8),
+            ...     (6, 9),
+            ...     (7, 9),
+            ...     (7, 10),
+            ...     (8, 11),
+            ...     (8, 12)
+            ... )
+
+            >>> bn.markov_boundary(6)  # corresponds to node A on Wikipedia
+            [3, 4, 5, 7, 8, 9]
+
+        """
+        return sorted(
+            set(self.parents[node]) |
+            set(self.children[node]) |
+            set().union(*[self.parents[child] for child in self.children[node]]) -
+            {node}
+        )

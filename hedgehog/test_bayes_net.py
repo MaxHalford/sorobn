@@ -14,22 +14,21 @@ import hedgehog as hh
 def check_partial_fit(bn):
     """Checks that partial_fit produces the same result as fit."""
 
-    bn2 = copy.deepcopy(bn)
+    bn_partial = copy.deepcopy(bn)
 
+    # Fit the parameters of the first BN in one go
     samples = bn.sample(500)
-
-    # Fit the parameters of the first parameters in one go
     bn.fit(samples)
 
     # Fit the parameters of the second BN incrementally
-    bn2.P = {}
-    bn2._P_sizes = {}
+    bn_partial.P = {}
+    bn_partial._P_sizes = {}
     for chunk in np.array_split(samples, 5):
-        bn2.partial_fit(chunk)
+        bn_partial.partial_fit(chunk)
 
     # Check that the obtained parameters are identical
     for node in bn.P:
-        pd.testing.assert_series_equal(bn.P[node], bn2.P[node])
+        pd.testing.assert_series_equal(bn.P[node], bn_partial.P[node])
 
 
 def check_sample_many(bn):
