@@ -17,12 +17,12 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/MaxHalford/hedgehog',
     packages=['hedgehog'],
-    python_requires='>=3.6',
+    python_requires='>=3.9',
     install_requires=[
         'pandas'
     ],
     extras_require={
-        'dev': ['pytest'],
+        'dev': ['graphviz', 'pytest'],
         'gui': ['graphviz', 'streamlit']
     },
     entry_points={

@@ -1,6 +1,7 @@
 import collections
 import functools
 import itertools
+import graphlib
 import typing
 
 import numpy as np
@@ -200,7 +201,8 @@ class BayesNet:
     """Bayesian network.
 
     Parameters:
-        structure (list of tuples): Each tuple denotes a (parent, child) connection.
+        structure (list of tuples): Each tuple denotes a (parent, child) connection. A CycleError
+            will be raised if the structure is not acyclic.
         prior_count (int): If provided, artificial samples will be used to compute each conditional
             probability distribution, in addition to provided samples. As a consequence, each
             combination of parent(s)/child(ren) values will appear prior_count times. The
@@ -235,7 +237,11 @@ class BayesNet:
         self.parents = {node: list(sorted(parents)) for node, parents in self.parents.items()}
         self.children = {node: list(sorted(children)) for node, children in self.children.items()}
 
-        self.nodes = sorted({*self.parents.keys(), *self.children.keys(), *nodes})
+        # We sort the nodes in topological order, this simplifies the implementation of certain
+        # algorithms
+        ts = graphlib.TopologicalSorter(graph=self.parents)
+        self.nodes = list(ts.static_order())
+
         self.P = {}
         self._P_sizes = {}
 
@@ -266,36 +272,18 @@ class BayesNet:
 
         """
 
-        def sample_node_value(node, sample, visited):
+        while True:
 
-            # If this node has been visited, then that implies that it's parents and ancestors
-            # have been visited too, which means that there is no point in going further up the
-            # network.
-            if node in visited:
-                return
+            sample = init.copy() if init else {}
 
-            visited.add(node)
-
-            # At this point, we need to ensure that the sample contains a value for each parent
-            # node
-            for parent in self.parents.get(node, ()):
-                sample_node_value(node=parent, sample=sample, visited=visited)
-
-            if node not in sample:
+            for node in self.nodes:
                 P = self.P[node]
                 if node in self.parents:
                     condition = tuple(sample[parent] for parent in self.parents[node])
                     P = P.cdt[condition]
                 sample[node] = P.cdt.sample()
 
-        sample = init.copy() if init else {}
-        visited = set()
-
-        for node in self.nodes:
-            if node not in self.children:  # is a leaf
-                sample_node_value(node=node, sample=sample, visited=visited)
-
-        return sample
+            yield sample
 
     def sample(self, n=1):
         """Generate a new sample at random by using forward sampling.
@@ -310,12 +298,15 @@ class BayesNet:
                 returned if not.
 
         """
+
+        samples = self._forward_sample()
+
         if n > 1:
             return (
-                pd.DataFrame(self._forward_sample() for _ in range(n))
+                pd.DataFrame(next(samples) for _ in range(n))
                 .sort_index(axis='columns')
             )
-        return self._forward_sample()
+        return next(samples)
 
     def partial_fit(self, X: pd.DataFrame):
         """Update the parameters of each conditional distribution."""
@@ -441,7 +432,7 @@ class BayesNet:
         for i in range(n_iterations):
 
             # Sample by using the events as fixed values
-            sample = self._forward_sample(init=event)
+            sample = next(self._forward_sample(init=event))
 
             # Compute the likelihood of this sample
             weight = 1.
@@ -517,7 +508,7 @@ class BayesNet:
             blankets[node] = blanket
 
         # Start with a random sample
-        state = self._forward_sample(init=event)
+        state = next(self._forward_sample(init=event))
 
         samples = {var: [None] * n_iterations for var in query}
         cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter

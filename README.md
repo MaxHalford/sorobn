@@ -390,11 +390,12 @@ $ git clone https://github.com/MaxHalford/hedgehog
 $ cd hedgehog
 
 # Create a virtual environment
-$ python3 -m venv env
-$ source env/bin/activate
+$ conda create -n hedgehog -y python=3.9
+$ conda activate hedgehog
 
 # Install in development mode
 $ pip install -e ".[dev]"
+$ pip install git+https://github.com/MaxHalford/vose
 $ python setup.py develop
 
 # Run tests
