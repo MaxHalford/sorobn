@@ -492,10 +492,10 @@ class BayesNet:
         """
 
         # We start by computing the conditional distributions for each node that is not part of
-        # the event. Each relevant node is therefore conditioned on its Markov blanket. Refer to
+        # the event. Each relevant node is therefore conditioned on its Markov boundary. Refer to
         # equation 14.12 of Artificial Intelligence: A Modern Approach for more detail.
         posteriors = {}
-        blankets = {}
+        boundarys = {}
         nonevents = sorted(set(self.nodes) - set(event))
 
         for node in nonevents:
@@ -504,14 +504,13 @@ class BayesNet:
             for child in self.children.get(node, ()):
                 post = pointwise_mul(post, self.P[child])
 
-            blanket = list(post.index.names)  # Markov blanket
-            blanket.remove(node)
-            if blanket:
-                post = post.groupby(blanket).apply(lambda g: g / g.sum())
-                post = post.reorder_levels([*blanket, node])
+            boundary = self.markov_boundary(node)
+            if boundary:
+                post = post.groupby(boundary).apply(lambda g: g / g.sum())
+                post = post.reorder_levels([*boundary, node])
             post = post.sort_index()
             posteriors[node] = post
-            blankets[node] = blanket
+            boundarys[node] = boundary
 
         # Start with a random sample
         state = next(self._forward_sample(init=event))
@@ -524,9 +523,9 @@ class BayesNet:
             # Go to the next variable
             var = next(cycle)
 
-            # Sample from P(var | blanket(var))
+            # Sample from P(var | boundary(var))
             P = posteriors[var]
-            condition = tuple(state[node] for node in blankets[var])
+            condition = tuple(state[node] for node in boundarys[var])
             if condition:
                 P = P.cdt[condition]
             val = P.cdt.sample()
@@ -877,9 +876,10 @@ class BayesNet:
             [3, 4, 5, 7, 8, 9]
 
         """
+        children = self.children.get(node, [])
         return sorted(
-            set(self.parents[node]) |
-            set(self.children[node]) |
-            set().union(*[self.parents[child] for child in self.children[node]]) -
+            set(self.parents.get(node, [])) |
+            set(children) |
+            set().union(*[self.parents[child] for child in children]) -
             {node}
         )
