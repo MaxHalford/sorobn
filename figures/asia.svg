@@ -8,14 +8,56 @@
  viewBox="0.00 0.00 322.34 260.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 256)">
 <polygon fill="white" stroke="transparent" points="-4,4 -4,-256 318.34,-256 318.34,4 -4,4"/>
-<!-- Bronchitis -->
+<!-- Smoker -->
 <g id="node1" class="node">
+<title>Smoker</title>
+<ellipse fill="none" stroke="black" cx="89.45" cy="-234" rx="38.19" ry="18"/>
+<text text-anchor="middle" x="89.45" y="-230.3" font-family="Times,serif" font-size="14.00">Smoker</text>
+</g>
+<!-- Bronchitis -->
+<g id="node3" class="node">
 <title>Bronchitis</title>
 <ellipse fill="none" stroke="black" cx="47.45" cy="-90" rx="47.39" ry="18"/>
 <text text-anchor="middle" x="47.45" y="-86.3" font-family="Times,serif" font-size="14.00">Bronchitis</text>
 </g>
-<!-- Dispnea -->
+<!-- Smoker&#45;&gt;Bronchitis -->
+<g id="edge2" class="edge">
+<title>Smoker&#45;&gt;Bronchitis</title>
+<path fill="none" stroke="black" d="M81.11,-216.15C76.29,-205.89 70.42,-192.42 66.45,-180 59.91,-159.59 54.97,-135.83 51.76,-117.99"/>
+<polygon fill="black" stroke="black" points="55.19,-117.25 50.04,-107.99 48.29,-118.44 55.19,-117.25"/>
+</g>
+<!-- Lung cancer -->
+<g id="node4" class="node">
+<title>Lung cancer</title>
+<ellipse fill="none" stroke="black" cx="130.45" cy="-162" rx="54.69" ry="18"/>
+<text text-anchor="middle" x="130.45" y="-158.3" font-family="Times,serif" font-size="14.00">Lung cancer</text>
+</g>
+<!-- Smoker&#45;&gt;Lung cancer -->
+<g id="edge3" class="edge">
+<title>Smoker&#45;&gt;Lung cancer</title>
+<path fill="none" stroke="black" d="M99.16,-216.41C103.99,-208.16 109.94,-198.01 115.35,-188.78"/>
+<polygon fill="black" stroke="black" points="118.48,-190.35 120.51,-179.96 112.44,-186.82 118.48,-190.35"/>
+</g>
+<!-- Visit to Asia -->
 <g id="node2" class="node">
+<title>Visit to Asia</title>
+<ellipse fill="none" stroke="black" cx="258.45" cy="-234" rx="55.49" ry="18"/>
+<text text-anchor="middle" x="258.45" y="-230.3" font-family="Times,serif" font-size="14.00">Visit to Asia</text>
+</g>
+<!-- Tuberculosis -->
+<g id="node5" class="node">
+<title>Tuberculosis</title>
+<ellipse fill="none" stroke="black" cx="258.45" cy="-162" rx="55.79" ry="18"/>
+<text text-anchor="middle" x="258.45" y="-158.3" font-family="Times,serif" font-size="14.00">Tuberculosis</text>
+</g>
+<!-- Visit to Asia&#45;&gt;Tuberculosis -->
+<g id="edge1" class="edge">
+<title>Visit to Asia&#45;&gt;Tuberculosis</title>
+<path fill="none" stroke="black" d="M258.45,-215.7C258.45,-207.98 258.45,-198.71 258.45,-190.11"/>
+<polygon fill="black" stroke="black" points="261.95,-190.1 258.45,-180.1 254.95,-190.1 261.95,-190.1"/>
+</g>
+<!-- Dispnea -->
+<g id="node7" class="node">
 <title>Dispnea</title>
 <ellipse fill="none" stroke="black" cx="49.45" cy="-18" rx="39.79" ry="18"/>
 <text text-anchor="middle" x="49.45" y="-14.3" font-family="Times,serif" font-size="14.00">Dispnea</text>
@@ -25,12 +67,6 @@
 <title>Bronchitis&#45;&gt;Dispnea</title>
 <path fill="none" stroke="black" d="M47.94,-71.7C48.16,-63.98 48.43,-54.71 48.67,-46.11"/>
 <polygon fill="black" stroke="black" points="52.17,-46.2 48.96,-36.1 45.17,-46 52.17,-46.2"/>
-</g>
-<!-- Lung cancer -->
-<g id="node3" class="node">
-<title>Lung cancer</title>
-<ellipse fill="none" stroke="black" cx="130.45" cy="-162" rx="54.69" ry="18"/>
-<text text-anchor="middle" x="130.45" y="-158.3" font-family="Times,serif" font-size="14.00">Lung cancer</text>
 </g>
 <!-- TB or cancer -->
 <g id="node6" class="node">
@@ -44,29 +80,11 @@
 <path fill="none" stroke="black" d="M140.13,-144.05C144.85,-135.8 150.62,-125.7 155.85,-116.54"/>
 <polygon fill="black" stroke="black" points="158.93,-118.21 160.85,-107.79 152.85,-114.73 158.93,-118.21"/>
 </g>
-<!-- Positive X&#45;ray -->
-<g id="node4" class="node">
-<title>Positive X&#45;ray</title>
-<ellipse fill="none" stroke="black" cx="170.45" cy="-18" rx="61.99" ry="18"/>
-<text text-anchor="middle" x="170.45" y="-14.3" font-family="Times,serif" font-size="14.00">Positive X&#45;ray</text>
-</g>
-<!-- Smoker -->
-<g id="node5" class="node">
-<title>Smoker</title>
-<ellipse fill="none" stroke="black" cx="89.45" cy="-234" rx="38.19" ry="18"/>
-<text text-anchor="middle" x="89.45" y="-230.3" font-family="Times,serif" font-size="14.00">Smoker</text>
-</g>
-<!-- Smoker&#45;&gt;Bronchitis -->
-<g id="edge2" class="edge">
-<title>Smoker&#45;&gt;Bronchitis</title>
-<path fill="none" stroke="black" d="M81.11,-216.15C76.29,-205.89 70.42,-192.42 66.45,-180 59.91,-159.59 54.97,-135.83 51.76,-117.99"/>
-<polygon fill="black" stroke="black" points="55.19,-117.25 50.04,-107.99 48.29,-118.44 55.19,-117.25"/>
-</g>
-<!-- Smoker&#45;&gt;Lung cancer -->
-<g id="edge3" class="edge">
-<title>Smoker&#45;&gt;Lung cancer</title>
-<path fill="none" stroke="black" d="M99.16,-216.41C103.99,-208.16 109.94,-198.01 115.35,-188.78"/>
-<polygon fill="black" stroke="black" points="118.48,-190.35 120.51,-179.96 112.44,-186.82 118.48,-190.35"/>
+<!-- Tuberculosis&#45;&gt;TB or cancer -->
+<g id="edge4" class="edge">
+<title>Tuberculosis&#45;&gt;TB or cancer</title>
+<path fill="none" stroke="black" d="M238.48,-145.12C226.75,-135.78 211.73,-123.84 198.79,-113.55"/>
+<polygon fill="black" stroke="black" points="200.64,-110.55 190.64,-107.06 196.29,-116.03 200.64,-110.55"/>
 </g>
 <!-- TB or cancer&#45;&gt;Dispnea -->
 <g id="edge6" class="edge">
@@ -74,35 +92,17 @@
 <path fill="none" stroke="black" d="M144.19,-73.81C125.95,-63.26 101.52,-49.12 82.03,-37.85"/>
 <polygon fill="black" stroke="black" points="83.6,-34.71 73.19,-32.74 80.09,-40.77 83.6,-34.71"/>
 </g>
+<!-- Positive X&#45;ray -->
+<g id="node8" class="node">
+<title>Positive X&#45;ray</title>
+<ellipse fill="none" stroke="black" cx="170.45" cy="-18" rx="61.99" ry="18"/>
+<text text-anchor="middle" x="170.45" y="-14.3" font-family="Times,serif" font-size="14.00">Positive X&#45;ray</text>
+</g>
 <!-- TB or cancer&#45;&gt;Positive X&#45;ray -->
 <g id="edge7" class="edge">
 <title>TB or cancer&#45;&gt;Positive X&#45;ray</title>
 <path fill="none" stroke="black" d="M170.45,-71.7C170.45,-63.98 170.45,-54.71 170.45,-46.11"/>
 <polygon fill="black" stroke="black" points="173.95,-46.1 170.45,-36.1 166.95,-46.1 173.95,-46.1"/>
-</g>
-<!-- Tuberculosis -->
-<g id="node7" class="node">
-<title>Tuberculosis</title>
-<ellipse fill="none" stroke="black" cx="258.45" cy="-162" rx="55.79" ry="18"/>
-<text text-anchor="middle" x="258.45" y="-158.3" font-family="Times,serif" font-size="14.00">Tuberculosis</text>
-</g>
-<!-- Tuberculosis&#45;&gt;TB or cancer -->
-<g id="edge4" class="edge">
-<title>Tuberculosis&#45;&gt;TB or cancer</title>
-<path fill="none" stroke="black" d="M238.48,-145.12C226.75,-135.78 211.73,-123.84 198.79,-113.55"/>
-<polygon fill="black" stroke="black" points="200.64,-110.55 190.64,-107.06 196.29,-116.03 200.64,-110.55"/>
-</g>
-<!-- Visit to Asia -->
-<g id="node8" class="node">
-<title>Visit to Asia</title>
-<ellipse fill="none" stroke="black" cx="258.45" cy="-234" rx="55.49" ry="18"/>
-<text text-anchor="middle" x="258.45" y="-230.3" font-family="Times,serif" font-size="14.00">Visit to Asia</text>
-</g>
-<!-- Visit to Asia&#45;&gt;Tuberculosis -->
-<g id="edge1" class="edge">
-<title>Visit to Asia&#45;&gt;Tuberculosis</title>
-<path fill="none" stroke="black" d="M258.45,-215.7C258.45,-207.98 258.45,-198.71 258.45,-190.11"/>
-<polygon fill="black" stroke="black" points="261.95,-190.1 258.45,-180.1 254.95,-190.1 261.95,-190.1"/>
 </g>
 </g>
 </svg>

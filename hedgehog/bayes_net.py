@@ -237,9 +237,11 @@ class BayesNet:
         self.parents = {node: list(sorted(parents)) for node, parents in self.parents.items()}
         self.children = {node: list(sorted(children)) for node, children in self.children.items()}
 
-        # We sort the nodes in topological order, this simplifies the implementation of certain
-        # algorithms
-        ts = graphlib.TopologicalSorter(graph=self.parents)
+        # The nodes are sorted in topological order. Nodes of the same level are sorted in
+        # lexicographic order.
+        ts = graphlib.TopologicalSorter()
+        for node in sorted({*self.parents.keys(), *self.children.keys(), *nodes}):
+            ts.add(node, *self.parents.get(node, []))
         self.nodes = list(ts.static_order())
 
         self.P = {}
@@ -277,6 +279,10 @@ class BayesNet:
             sample = init.copy() if init else {}
 
             for node in self.nodes:
+
+                if node in sample:
+                    continue
+
                 P = self.P[node]
                 if node in self.parents:
                     condition = tuple(sample[parent] for parent in self.parents[node])

@@ -255,7 +255,7 @@ def grades():
         >>> bn = hh.examples.grades()
 
         >>> bn.nodes
-        ['Difficulty', 'Grade', 'Intelligence', 'Letter', 'SAT']
+        ['Difficulty', 'Intelligence', 'Grade', 'SAT', 'Letter']
 
         >>> bn.children
         {'Difficulty': ['Grade'], 'Intelligence': ['Grade', 'SAT'], 'Grade': ['Letter']}
