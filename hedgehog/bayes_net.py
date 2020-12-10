@@ -382,21 +382,21 @@ class BayesNet:
             self._P_sizes[child] = counts.groupby(parents).size()
             self.P[child] = counts / self._P_sizes[child]
 
-        # Compute the distribution for each orphan (i.e. the roots)
-        for orphan in set(self.nodes) - set(self.parents):
+        # Compute the distribution for each root
+        for root in self.roots:
 
             # Incremental update
-            if orphan in self.P:
-                old_counts = self.P[orphan] * self._P_sizes[orphan]
-                new_counts = X[orphan].value_counts()
+            if root in self.P:
+                old_counts = self.P[root] * self._P_sizes[root]
+                new_counts = X[root].value_counts()
                 counts = old_counts.add(new_counts, fill_value=0)
-                self._P_sizes[orphan] += len(X)
-                self.P[orphan] = counts / self._P_sizes[orphan]
+                self._P_sizes[root] += len(X)
+                self.P[root] = counts / self._P_sizes[root]
 
             # From scratch
             else:
-                self._P_sizes[orphan] = len(X)
-                self.P[orphan] = X[orphan].value_counts(normalize=True)
+                self._P_sizes[root] = len(X)
+                self.P[root] = X[root].value_counts(normalize=True)
 
         self.prepare()
 
@@ -545,13 +545,14 @@ class BayesNet:
         for node in nonevents:
 
             post = self.P[node]
+
             for child in self.children.get(node, ()):
                 post = pointwise_mul(post, self.P[child])
 
-            boundary = self.markov_boundary(node)
-            if boundary:
+            if boundary := self.markov_boundary(node):
                 post = post.groupby(boundary).apply(lambda g: g / g.sum())
                 post = post.reorder_levels([*boundary, node])
+
             post = post.sort_index()
             posteriors[node] = post
             boundaries[node] = boundary
@@ -640,10 +641,20 @@ class BayesNet:
         return posterior
 
     def ancestors(self, node):
+        """Return a node's ancestors."""
         parents = self.parents.get(node, ())
         if parents:
             return set(parents) | set.union(*[self.ancestors(p) for p in parents])
         return set()
+
+    @property
+    def roots(self):
+        """Return the network's roots.
+
+        A root is a node that has no parent.
+
+        """
+        return [node for node in self.nodes if node not in self.parents]
 
     def query(self, *query: typing.Tuple[str], event: dict, algorithm='exact',
               n_iterations=100) -> pd.Series:
