@@ -192,6 +192,50 @@ def pointwise_mul(left: pd.Series, right: pd.Series):
 
 
 def sum_out(P: pd.Series, var: str) -> pd.Series:
+    """Sums out a variable from a multi-indexed series.
+
+    Example:
+
+        Example taken from figure 14.10 of Artificial Intelligence: A Modern Approach.
+
+        >>> a = pd.Series({
+        ...     ('T', 'T'): .3,
+        ...     ('T', 'F'): .7,
+        ...     ('F', 'T'): .9,
+        ...     ('F', 'F'): .1
+        ... })
+        >>> a.index.names = ['A', 'B']
+
+        >>> b = pd.Series({
+        ...     ('T', 'T'): .2,
+        ...     ('T', 'F'): .8,
+        ...     ('F', 'T'): .6,
+        ...     ('F', 'F'): .4
+        ... })
+        >>> b.index.names = ['B', 'C']
+
+        >>> ab = pointwise_mul(a, b)
+        >>> ab
+        B  A  C
+        F  T  T    0.42
+              F    0.28
+           F  T    0.06
+              F    0.04
+        T  T  T    0.06
+              F    0.24
+           F  T    0.18
+              F    0.72
+        dtype: float64
+
+        >>> sum_out(ab, 'B')
+        A  C
+        F  F    0.76
+           T    0.24
+        T  F    0.52
+           T    0.48
+        dtype: float64
+
+    """
     nodes = list(P.index.names)
     nodes.remove(var)
     return P.groupby(nodes).sum()
@@ -495,7 +539,7 @@ class BayesNet:
         # the event. Each relevant node is therefore conditioned on its Markov boundary. Refer to
         # equation 14.12 of Artificial Intelligence: A Modern Approach for more detail.
         posteriors = {}
-        boundarys = {}
+        boundaries = {}
         nonevents = sorted(set(self.nodes) - set(event))
 
         for node in nonevents:
@@ -510,7 +554,7 @@ class BayesNet:
                 post = post.reorder_levels([*boundary, node])
             post = post.sort_index()
             posteriors[node] = post
-            boundarys[node] = boundary
+            boundaries[node] = boundary
 
         # Start with a random sample
         state = next(self._forward_sample(init=event))
@@ -525,11 +569,10 @@ class BayesNet:
 
             # Sample from P(var | boundary(var))
             P = posteriors[var]
-            condition = tuple(state[node] for node in boundarys[var])
+            condition = tuple(state[node] for node in boundaries[var])
             if condition:
                 P = P.cdt[condition]
-            val = P.cdt.sample()
-            state[var] = val
+            state[var] = P.cdt.sample()
 
             # Record the current state
             for var in query:
