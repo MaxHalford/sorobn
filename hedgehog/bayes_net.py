@@ -2,6 +2,7 @@ import collections
 import functools
 import itertools
 import graphlib
+import queue
 import typing
 
 import numpy as np
@@ -344,7 +345,7 @@ class BayesNet:
 
             yield sample
 
-    def _flood_fill_sampling(self, init: dict = None):
+    def _flood_fill_sample(self, init: dict = None):
 
         # We first define an order in which we'll loop over the nodes
 
@@ -375,7 +376,7 @@ class BayesNet:
             p = self.P[node]
 
             if node in init:
-                p = p.query(f'@node = @init[@node]')
+                p = p[p.index.get_level_values(node) == init[node]]
 
             if conditioning := list(visited.intersection(self.markov_boundary(node))):
                 p = pointwise_mul([p, pointwise_mul(self.P[c] for c in conditioning)])
@@ -959,11 +960,13 @@ class BayesNet:
         In a Bayesian network, the Markov boundary is a minimal Markov blanket. The Markov boundary
         of a node includes its parents, children and the other parents of all of its children.
 
-        Example:
+        Examples:
 
             The following article is taken from the Markov blanket Wikipedia article.
 
-            >>> bn = BayesNet(
+            >>> import hedgehog as hh
+
+            >>> bn = hh.BayesNet(
             ...     (0, 3),
             ...     (1, 4),
             ...     (2, 5),
@@ -989,3 +992,76 @@ class BayesNet:
             set().union(*[self.parents[child] for child in children]) -
             {node}
         )
+
+    def iter_bfs(bn):
+        """Iterate over the nodes in breadth-first search fashion.
+
+        Examples:
+
+            >>> import hedgehog as hh
+
+            >>> bn = hh.examples.asia()
+
+            >>> for node in bn.iter_bfs():
+            ...     print(node)
+            Smoker
+            Visit to Asia
+            Bronchitis
+            Lung cancer
+            Tuberculosis
+            Dispnea
+            TB or cancer
+            Positive X-ray
+
+        """
+
+        q = queue.SimpleQueue()
+        seen = set()
+
+        for root in bn.roots:
+            q.put(root)
+            seen.add(root)
+
+        while not q.empty():
+            node = q.get()
+            yield node
+            for child in bn.children.get(node, []):
+                if child not in seen:
+                    q.put(child)
+                    seen.add(child)
+
+    def iter_dfs(self):
+        """Iterate over the nodes in depth-first search fashion.
+
+        Examples:
+
+            >>> import hedgehog as hh
+
+            >>> bn = hh.examples.asia()
+
+            >>> for node in bn.iter_dfs():
+            ...     print(node)
+            Smoker
+            Bronchitis
+            Dispnea
+            Lung cancer
+            TB or cancer
+            Positive X-ray
+            Visit to Asia
+            Tuberculosis
+
+        """
+
+        def bfs(node, visited):
+
+            yield node
+            visited.add(node)
+
+            for child in self.children.get(node, []):
+                if child not in visited:
+                    yield from bfs(child, visited)
+
+        visited = set()
+
+        for root in self.roots:
+            yield from bfs(root, visited)
