@@ -22,7 +22,8 @@ setup(
         'pandas'
     ],
     extras_require={
-        'dev': ['graphviz', 'pytest'],
+        'dev': ['graphviz', 'pytest', 'scikit-learn'],
+        'examples': ['daft', 'matplotlib', 'scikit-learn']
         'gui': ['graphviz', 'streamlit']
     },
     entry_points={
