@@ -51,8 +51,58 @@ class CDTAccessor:
         """
         return self.series[idx]
 
+    def sum_out(self, *variables):
+        """Sums out a variable from a multi-indexed series.
 
-def pointwise_mul(left: pd.Series, right: pd.Series):
+        Example:
+
+            Example taken from figure 14.10 of Artificial Intelligence: A Modern Approach.
+
+            >>> a = pd.Series({
+            ...     ('T', 'T'): .3,
+            ...     ('T', 'F'): .7,
+            ...     ('F', 'T'): .9,
+            ...     ('F', 'F'): .1
+            ... })
+            >>> a.index.names = ['A', 'B']
+
+            >>> b = pd.Series({
+            ...     ('T', 'T'): .2,
+            ...     ('T', 'F'): .8,
+            ...     ('F', 'T'): .6,
+            ...     ('F', 'F'): .4
+            ... })
+            >>> b.index.names = ['B', 'C']
+
+            >>> ab = pointwise_mul_two(a, b)
+            >>> ab
+            B  A  C
+            F  T  T    0.42
+                  F    0.28
+               F  T    0.06
+                  F    0.04
+            T  T  T    0.06
+                  F    0.24
+               F  T    0.18
+                  F    0.72
+            dtype: float64
+
+            >>> ab.cdt.sum_out('B')
+            A  C
+            F  F    0.76
+               T    0.24
+            T  F    0.52
+               T    0.48
+            dtype: float64
+
+        """
+        nodes = list(self.series.index.names)
+        for var in variables:
+            nodes.remove(var)
+        return self.series.groupby(nodes).sum()
+
+
+def pointwise_mul_two(left: pd.Series, right: pd.Series):
     """Pointwise multiplication of two series.
 
     Examples:
@@ -75,7 +125,7 @@ def pointwise_mul(left: pd.Series, right: pd.Series):
         ... })
         >>> b.index.names = ['B', 'C']
 
-        >>> pointwise_mul(a, b)
+        >>> pointwise_mul_two(a, b)
         B  A  C
         F  T  T    0.42
               F    0.28
@@ -106,7 +156,7 @@ def pointwise_mul(left: pd.Series, right: pd.Series):
         ... })
         >>> b.index.names = ['C', 'D']
 
-        >>> pointwise_mul(a, b)
+        >>> pointwise_mul_two(a, b)
         A  B  C  D
         T  T  F  F    0.12
                  T    0.18
@@ -140,7 +190,7 @@ def pointwise_mul(left: pd.Series, right: pd.Series):
         ... })
         >>> b.index.names = ['B']
 
-        >>> pointwise_mul(a, b)
+        >>> pointwise_mul_two(a, b)
         A  B
         T  T    0.06
            F    0.24
@@ -164,7 +214,7 @@ def pointwise_mul(left: pd.Series, right: pd.Series):
         ... })
         >>> b.index.names = ['B', 'C']
 
-        >>> pointwise_mul(a, b)
+        >>> pointwise_mul_two(a, b)
         A  B  C
         T  F  F    0.12
               T    0.18
@@ -188,57 +238,14 @@ def pointwise_mul(left: pd.Series, right: pd.Series):
         l_idx = np.arange(len(left))
     if r_idx is None:
         r_idx = np.arange(len(right))
+
     return pd.Series(left.iloc[l_idx].values * right.iloc[r_idx].values, index=index)
 
 
-def sum_out(P: pd.Series, var: str) -> pd.Series:
-    """Sums out a variable from a multi-indexed series.
-
-    Example:
-
-        Example taken from figure 14.10 of Artificial Intelligence: A Modern Approach.
-
-        >>> a = pd.Series({
-        ...     ('T', 'T'): .3,
-        ...     ('T', 'F'): .7,
-        ...     ('F', 'T'): .9,
-        ...     ('F', 'F'): .1
-        ... })
-        >>> a.index.names = ['A', 'B']
-
-        >>> b = pd.Series({
-        ...     ('T', 'T'): .2,
-        ...     ('T', 'F'): .8,
-        ...     ('F', 'T'): .6,
-        ...     ('F', 'F'): .4
-        ... })
-        >>> b.index.names = ['B', 'C']
-
-        >>> ab = pointwise_mul(a, b)
-        >>> ab
-        B  A  C
-        F  T  T    0.42
-              F    0.28
-           F  T    0.06
-              F    0.04
-        T  T  T    0.06
-              F    0.24
-           F  T    0.18
-              F    0.72
-        dtype: float64
-
-        >>> sum_out(ab, 'B')
-        A  C
-        F  F    0.76
-           T    0.24
-        T  F    0.52
-           T    0.48
-        dtype: float64
-
-    """
-    nodes = list(P.index.names)
-    nodes.remove(var)
-    return P.groupby(nodes).sum()
+def pointwise_mul(cdts, keep_zeros=False):
+    if not keep_zeros:
+        cdts = (cdt[cdt > 0] for cdt in cdts)
+    return functools.reduce(pointwise_mul_two, cdts)
 
 
 class BayesNet:
@@ -544,10 +551,7 @@ class BayesNet:
 
         for node in nonevents:
 
-            post = self.P[node]
-
-            for child in self.children.get(node, ()):
-                post = pointwise_mul(post, self.P[child])
+            post = pointwise_mul(self.P[node] for node in [node, *self.children.get(node, [])])
 
             if boundary := self.markov_boundary(node):
                 post = post.groupby(boundary).apply(lambda g: g / g.sum())
@@ -623,19 +627,16 @@ class BayesNet:
 
         # Sum-out the hidden variables from the factors in which they appear
         for node in hidden:
-            prod = functools.reduce(
-                pointwise_mul,
-                (
-                    factors.pop(i)
-                    for i in reversed(range(len(factors)))
-                    if node in factors[i].index.names
-                )
+            prod = pointwise_mul(
+                factors.pop(i)
+                for i in reversed(range(len(factors)))
+                if node in factors[i].index.names
             )
-            prod = sum_out(P=prod, var=node)
+            prod = prod.cdt.sum_out(node)
             factors.append(prod)
 
         # Pointwise multiply the rest of the factors and normalize the result
-        posterior = functools.reduce(pointwise_mul, factors)
+        posterior = pointwise_mul(factors)
         posterior = posterior / posterior.sum()
         posterior.index = posterior.index.droplevel(list(set(posterior.index.names) - set(query)))
         return posterior
@@ -835,11 +836,7 @@ class BayesNet:
 
         """
 
-        dists = self.P.values()
-        if not keep_zeros:
-            dists = (d[d > 0] for d in dists)
-
-        fjd = functools.reduce(pointwise_mul, dists)
+        fjd = pointwise_mul(self.P.values(), keep_zeros=keep_zeros)
         fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
         fjd.name = f'P({", ".join(fjd.index.names)})'
