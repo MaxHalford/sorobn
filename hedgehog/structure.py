@@ -20,10 +20,12 @@ def chow_liu(X, root=None):
     TODO: the current implementation uses Kruskal's algorithm to extract the MST. According to
         Wikipedia, faster algorithms exist for fully connected graphs.
 
-    References:
-        1. Chow, C. and Liu, C., 1968. Approximating discrete probability distributions with
-            dependence trees. IEEE transactions on Information Theory, 14(3), pp.462-467.
-        2. https://www.wikiwand.com/en/Chow-Liu_tree
+    References
+    ----------
+
+    1. Chow, C. and Liu, C., 1968. Approximating discrete probability distributions with
+        dependence trees. IEEE transactions on Information Theory, 14(3), pp.462-467.
+    2. https://www.wikiwand.com/en/Chow-Liu_tree
 
     """
 
@@ -64,10 +66,12 @@ def mutual_info(puv, pu, pv):
 class DisjointSet:
     """Disjoint-set data structure.
 
-    References:
-        1. Tarjan, R.E. and Van Leeuwen, J., 1984. Worst-case analysis of set union algorithms.
-            Journal of the ACM (JACM), 31(2), pp.245-281.
-        2. https://www.wikiwand.com/en/Disjoint-set_data_structure
+    References
+    ----------
+
+    1. Tarjan, R.E. and Van Leeuwen, J., 1984. Worst-case analysis of set union algorithms.
+        Journal of the ACM (JACM), 31(2), pp.245-281.
+    2. https://www.wikiwand.com/en/Disjoint-set_data_structure
 
     """
 
@@ -92,9 +96,11 @@ def kruskal(vertices, edges):
 
     The provided edges are assumed to be sorted in descending order.
 
-    References:
-        1. Kruskal, J.B., 1956. On the shortest spanning subtree of a graph and the traveling
-            salesman problem. Proceedings of the American Mathematical society, 7(1), pp.48-50.
+    References
+    ----------
+
+    1. Kruskal, J.B., 1956. On the shortest spanning subtree of a graph and the traveling
+        salesman problem. Proceedings of the American Mathematical society, 7(1), pp.48-50.
 
     """
 

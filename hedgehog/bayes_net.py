@@ -55,58 +55,8 @@ class CDTAccessor:
     def sum_out(self, *variables):
         """Sums out a variable from a multi-indexed series.
 
-        Example:
-
-            Example taken from figure 14.10 of Artificial Intelligence: A Modern Approach.
-
-            >>> a = pd.Series({
-            ...     ('T', 'T'): .3,
-            ...     ('T', 'F'): .7,
-            ...     ('F', 'T'): .9,
-            ...     ('F', 'F'): .1
-            ... })
-            >>> a.index.names = ['A', 'B']
-
-            >>> b = pd.Series({
-            ...     ('T', 'T'): .2,
-            ...     ('T', 'F'): .8,
-            ...     ('F', 'T'): .6,
-            ...     ('F', 'F'): .4
-            ... })
-            >>> b.index.names = ['B', 'C']
-
-            >>> ab = pointwise_mul_two(a, b)
-            >>> ab
-            B  A  C
-            F  T  T    0.42
-                  F    0.28
-               F  T    0.06
-                  F    0.04
-            T  T  T    0.06
-                  F    0.24
-               F  T    0.18
-                  F    0.72
-            dtype: float64
-
-            >>> ab.cdt.sum_out('B')
-            A  C
-            F  F    0.76
-               T    0.24
-            T  F    0.52
-               T    0.48
-            dtype: float64
-
-        """
-        nodes = list(self.series.index.names)
-        for var in variables:
-            nodes.remove(var)
-        return self.series.groupby(nodes).sum()
-
-
-def pointwise_mul_two(left: pd.Series, right: pd.Series):
-    """Pointwise multiplication of two series.
-
-    Examples:
+        Examples
+        --------
 
         Example taken from figure 14.10 of Artificial Intelligence: A Modern Approach.
 
@@ -126,106 +76,158 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
         ... })
         >>> b.index.names = ['B', 'C']
 
-        >>> pointwise_mul_two(a, b)
+        >>> ab = pointwise_mul_two(a, b)
+        >>> ab
         B  A  C
         F  T  T    0.42
-              F    0.28
-           F  T    0.06
-              F    0.04
+                F    0.28
+            F  T    0.06
+                F    0.04
         T  T  T    0.06
-              F    0.24
-           F  T    0.18
-              F    0.72
+                F    0.24
+            F  T    0.18
+                F    0.72
         dtype: float64
 
-        This method returns the Cartesion product in case two don't share any part of their index
-        in common.
-
-        >>> a = pd.Series({
-        ...     ('T', 'T'): .3,
-        ...     ('T', 'F'): .7,
-        ...     ('F', 'T'): .9,
-        ...     ('F', 'F'): .1
-        ... })
-        >>> a.index.names = ['A', 'B']
-
-        >>> b = pd.Series({
-        ...     ('T', 'T'): .2,
-        ...     ('T', 'F'): .8,
-        ...     ('F', 'T'): .6,
-        ...     ('F', 'F'): .4
-        ... })
-        >>> b.index.names = ['C', 'D']
-
-        >>> pointwise_mul_two(a, b)
-        A  B  C  D
-        T  T  F  F    0.12
-                 T    0.18
-              T  F    0.24
-                 T    0.06
-           F  F  F    0.28
-                 T    0.42
-              T  F    0.56
-                 T    0.14
-        F  T  F  F    0.36
-                 T    0.54
-              T  F    0.72
-                 T    0.18
-           F  F  F    0.04
-                 T    0.06
-              T  F    0.08
-                 T    0.02
+        >>> ab.cdt.sum_out('B')
+        A  C
+        F  F    0.76
+            T    0.24
+        T  F    0.52
+            T    0.48
         dtype: float64
 
-        Here is an example where both series have a one-dimensional index:
+        """
+        nodes = list(self.series.index.names)
+        for var in variables:
+            nodes.remove(var)
+        return self.series.groupby(nodes).sum()
 
-        >>> a = pd.Series({
-        ...     'T': .3,
-        ...     'F': .7
-        ... })
-        >>> a.index.names = ['A']
 
-        >>> b = pd.Series({
-        ...     'T': .2,
-        ...     'F': .8
-        ... })
-        >>> b.index.names = ['B']
+def pointwise_mul_two(left: pd.Series, right: pd.Series):
+    """Pointwise multiplication of two series.
 
-        >>> pointwise_mul_two(a, b)
-        A  B
-        T  T    0.06
-           F    0.24
-        F  T    0.14
-           F    0.56
-        dtype: float64
+    Examples
+    --------
 
-        Finally, here is an example when only one of the series has a MultiIndex.
+    Example taken from figure 14.10 of Artificial Intelligence: A Modern Approach.
 
-        >>> a = pd.Series({
-        ...     'T': .3,
-        ...     'F': .7
-        ... })
-        >>> a.index.names = ['A']
+    >>> a = pd.Series({
+    ...     ('T', 'T'): .3,
+    ...     ('T', 'F'): .7,
+    ...     ('F', 'T'): .9,
+    ...     ('F', 'F'): .1
+    ... })
+    >>> a.index.names = ['A', 'B']
 
-        >>> b = pd.Series({
-        ...     ('T', 'T'): .2,
-        ...     ('T', 'F'): .8,
-        ...     ('F', 'T'): .6,
-        ...     ('F', 'F'): .4
-        ... })
-        >>> b.index.names = ['B', 'C']
+    >>> b = pd.Series({
+    ...     ('T', 'T'): .2,
+    ...     ('T', 'F'): .8,
+    ...     ('F', 'T'): .6,
+    ...     ('F', 'F'): .4
+    ... })
+    >>> b.index.names = ['B', 'C']
 
-        >>> pointwise_mul_two(a, b)
-        A  B  C
-        T  F  F    0.12
-              T    0.18
-           T  F    0.24
-              T    0.06
-        F  F  F    0.28
-              T    0.42
-           T  F    0.56
-              T    0.14
-        dtype: float64
+    >>> pointwise_mul_two(a, b)
+    B  A  C
+    F  T  T    0.42
+            F    0.28
+        F  T    0.06
+            F    0.04
+    T  T  T    0.06
+            F    0.24
+        F  T    0.18
+            F    0.72
+    dtype: float64
+
+    This method returns the Cartesion product in case two don't share any part of their index
+    in common.
+
+    >>> a = pd.Series({
+    ...     ('T', 'T'): .3,
+    ...     ('T', 'F'): .7,
+    ...     ('F', 'T'): .9,
+    ...     ('F', 'F'): .1
+    ... })
+    >>> a.index.names = ['A', 'B']
+
+    >>> b = pd.Series({
+    ...     ('T', 'T'): .2,
+    ...     ('T', 'F'): .8,
+    ...     ('F', 'T'): .6,
+    ...     ('F', 'F'): .4
+    ... })
+    >>> b.index.names = ['C', 'D']
+
+    >>> pointwise_mul_two(a, b)
+    A  B  C  D
+    T  T  F  F    0.12
+             T    0.18
+          T  F    0.24
+             T    0.06
+       F  F  F    0.28
+             T    0.42
+          T  F    0.56
+             T    0.14
+    F  T  F  F    0.36
+             T    0.54
+          T  F    0.72
+             T    0.18
+       F  F  F    0.04
+             T    0.06
+          T  F    0.08
+             T    0.02
+    dtype: float64
+
+    Here is an example where both series have a one-dimensional index:
+
+    >>> a = pd.Series({
+    ...     'T': .3,
+    ...     'F': .7
+    ... })
+    >>> a.index.names = ['A']
+
+    >>> b = pd.Series({
+    ...     'T': .2,
+    ...     'F': .8
+    ... })
+    >>> b.index.names = ['B']
+
+    >>> pointwise_mul_two(a, b)
+    A  B
+    T  T    0.06
+       F    0.24
+    F  T    0.14
+       F    0.56
+    dtype: float64
+
+    Finally, here is an example when only one of the series has a MultiIndex.
+
+    >>> a = pd.Series({
+    ...     'T': .3,
+    ...     'F': .7
+    ... })
+    >>> a.index.names = ['A']
+
+    >>> b = pd.Series({
+    ...     ('T', 'T'): .2,
+    ...     ('T', 'F'): .8,
+    ...     ('F', 'T'): .6,
+    ...     ('F', 'F'): .4
+    ... })
+    >>> b.index.names = ['B', 'C']
+
+    >>> pointwise_mul_two(a, b)
+    A  B  C
+    T  F  F    0.12
+          T    0.18
+       T  F    0.24
+          T    0.06
+    F  F  F    0.28
+          T    0.42
+       T  F    0.56
+          T    0.14
+    dtype: float64
 
     """
 
@@ -252,14 +254,26 @@ def pointwise_mul(cdts, keep_zeros=False):
 class BayesNet:
     """Bayesian network.
 
-    Parameters:
-        structure (list of tuples): Each tuple denotes a (parent, child) connection. A CycleError
-            will be raised if the structure is not acyclic.
-        prior_count (int): If provided, artificial samples will be used to compute each conditional
-            probability distribution, in addition to provided samples. As a consequence, each
-            combination of parent(s)/child(ren) values will appear prior_count times. The
-            justification for doing so is related to Laplace's rule of succession and to Bayesian
-            statistics in general.
+    Parameters
+    ----------
+
+    structure (list of tuples)
+        Each tuple denotes a (parent, child) connection. A CycleError is raised if the
+        structure is not acyclic.
+
+    prior_count (int)
+        If provided, artificial samples will be used to compute each conditional
+        probability distribution, in addition to provided samples. As a consequence, each
+        combination of parent(s)/child(ren) values will appear prior_count times. The
+        justification for doing so is related to Laplace's rule of succession and to Bayesian
+        statistics in general.
+
+    Attributes
+    ----------
+
+    nodes (list)
+        The node names sorted in topological order. Iterating over this is equivalent to performing
+        a breadth-first search.
 
     """
 
@@ -330,20 +344,26 @@ class BayesNet:
 
         while True:
 
-            sample = init.copy()
+            sample = {}
+            likelihood = 1.
 
             for node in self.nodes:
 
-                if node in init:
-                    continue
-
+                # Access P(node | parents(node))
                 P = self.P[node]
                 if node in self.parents:
                     condition = tuple(sample[parent] for parent in self.parents[node])
                     P = P.cdt[condition]
-                sample[node] = P.cdt.sample()
 
-            yield sample
+                if node in init:
+                    node_value = init[node]
+                else:
+                    node_value = P.cdt.sample()
+
+                sample[node] = node_value
+                likelihood *= P.get(node_value, 0)
+
+            yield sample, likelihood
 
     def _flood_fill_sample(self, init: dict = None):
 
@@ -412,13 +432,10 @@ class BayesNet:
 
         """
 
-        samples = self._forward_sample()
+        samples = (sample for sample, _ in self._forward_sample())
 
         if n > 1:
-            return (
-                pd.DataFrame(next(samples) for _ in range(n))
-                .sort_index(axis='columns')
-            )
+            return pd.DataFrame(next(samples) for _ in range(n)).sort_index(axis='columns')
         return next(samples)
 
     def partial_fit(self, X: pd.DataFrame):
@@ -533,39 +550,30 @@ class BayesNet:
             >>> event = {'Sprinkler': True}
             >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
             Rain
-            False    0.714862
-            True     0.285138
+            False    0.765995
+            True     0.234005
             Name: P(Rain), dtype: float64
 
         """
 
         samples = {var: [None] * n_iterations for var in query}
-        weights = [None] * n_iterations
+        likelihoods = [None] * n_iterations
+
+        sampler = self._forward_sample(init=event)
 
         for i in range(n_iterations):
 
             # Sample by using the events as fixed values
-            sample = next(self._forward_sample(init=event))
+            sample, likelihood = next(sampler)
 
             # Compute the likelihood of this sample
-            weight = 1.
-            for var, val in event.items():
-                P = self.P[var]
-                if var in self.parents:
-                    condition = tuple(sample[p] for p in self.parents[var])
-                    P = P.cdt[condition]
-                weight *= P.get(val, 0)
-
-                if weight == 0:
-                    break
-
             for var in query:
                 samples[var][i] = sample[var]
-                weights[i] = weight
+            likelihoods[i] = likelihood
 
         # Now we aggregate the resulting samples according to their associated likelihoods
-        results = pd.DataFrame({'weight': weights, **samples})
-        results = results.groupby(list(query))['weight'].mean()
+        results = pd.DataFrame({'likelihood': likelihoods, **samples})
+        results = results.groupby(list(query))['likelihood'].mean()
         results /= results.sum()
 
         return results
@@ -580,21 +588,22 @@ class BayesNet:
         computing the conditional distribution of each variable with respect to it's Markov
         blanket. Every time a random value is sampled, we update the current state and record it.
 
-        Example:
+        Examples
+        --------
 
-            >>> import hedgehog as hh
-            >>> import numpy as np
+        >>> import hedgehog as hh
+        >>> import numpy as np
 
-            >>> np.random.seed(42)
+        >>> np.random.seed(42)
 
-            >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler()
 
-            >>> event = {'Sprinkler': True}
-            >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
-            Rain
-            False    0.726
-            True     0.274
-            Name: P(Rain), dtype: float64
+        >>> event = {'Sprinkler': True}
+        >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
+        Rain
+        False    0.726
+        True     0.274
+        Name: P(Rain), dtype: float64
 
         """
 
@@ -618,7 +627,7 @@ class BayesNet:
             boundaries[node] = boundary
 
         # Start with a random sample
-        state = next(self._forward_sample(init=event))
+        state = next(self._forward_sample(init=event))[0]
 
         samples = {var: [None] * n_iterations for var in query}
         cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
@@ -648,17 +657,18 @@ class BayesNet:
 
         See figure 14.11 of Artificial Intelligence: A Modern Approach for more detail.
 
-        Example:
+        Examples
+        --------
 
-            >>> import hedgehog as hh
+        >>> import hedgehog as hh
 
-            >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler()
 
-            >>> bn.query('Rain', event={'Sprinkler': True}, algorithm='exact')
-            Rain
-            False    0.7
-            True     0.3
-            Name: P(Rain), dtype: float64
+        >>> bn.query('Rain', event={'Sprinkler': True}, algorithm='exact')
+        Rain
+        False    0.7
+        True     0.3
+        Name: P(Rain), dtype: float64
 
         """
 
@@ -722,29 +732,34 @@ class BayesNet:
         methods. Provided `n` is "large enough", approximate inference methods are usually very
         reliable.
 
-        Parameters:
-            query: The variables for which the posterior distribution is inferred.
-            event: The information on which to condition the answer. This can also be referred to
-                as the "evidence".
-            algorithm: Inference method to use. Possible choices are: exact, gibbs, likelihood,
-                rejection.
-            n_iterations: Number of iterations to perform when using an approximate inference
-                method.
+        Parameters
+        ----------
 
-        Example:
+        query
+            The variables for which the posterior distribution is inferred.
 
-            >>> import hedgehog as hh
+        event
+            The information on which to condition the answer. This can also called the "evidence".
+        algorithm
+            Inference method to use. Possible choices are: exact, gibbs, likelihood, rejection.
+        n_iterations
+            Number of iterations to perform when using an approximate inference method.
 
-            >>> bn = hh.examples.asia()
+        Examples
+        --------
 
-            >>> event = {'Visit to Asia': True, 'Smoker': True}
-            >>> bn.query('Lung cancer', 'Tuberculosis', event=event)
-            Lung cancer  Tuberculosis
-            False        False           0.855
-                         True            0.045
-            True         False           0.095
-                         True            0.005
-            Name: P(Lung cancer, Tuberculosis), dtype: float64
+        >>> import hedgehog as hh
+
+        >>> bn = hh.examples.asia()
+
+        >>> event = {'Visit to Asia': True, 'Smoker': True}
+        >>> bn.query('Lung cancer', 'Tuberculosis', event=event)
+        Lung cancer  Tuberculosis
+        False        False           0.855
+                     True            0.045
+        True         False           0.095
+                     True            0.005
+        Name: P(Lung cancer, Tuberculosis), dtype: float64
 
         """
 
@@ -784,11 +799,16 @@ class BayesNet:
 
         This method returns a fresh copy and does not modify the input.
 
-        Parameters:
-            sample: The sample for which the missing values need replacing. The missing values are
-                expected to be represented with `None`.
-            query_params: The rest of the keyword arguments for specifying what parameters to call
-                the `query` method with.
+        Parameters
+        ----------
+
+        sample
+            The sample for which the missing values need replacing. The missing values are expected
+            to be represented with `None`.
+
+        query_params
+            The rest of the keyword arguments for specifying what parameters to call the `query`
+            method with.
 
         """
 
@@ -839,56 +859,59 @@ class BayesNet:
         The full joint distribution is obtained by pointwise multiplying all the conditional
         probability tables with each other and normalizing the result.
 
-        Parameters:
-            keep_zeros: Determines whether or not to include value combinations that don't occur
-                together.
+        Parameters
+        ----------
 
-        Example:
+        keep_zeros
+            Determines whether or not to include value combinations that don't occur together.
 
-            >>> import hedgehog as hh
+        Examples
+        --------
 
-            >>> bn = hh.examples.sprinkler()
+        >>> import hedgehog as hh
 
-            >>> bn.full_joint_dist()
-            Cloudy  Rain   Sprinkler  Wet grass
-            False   False  False      False        0.2000
-                           True       False        0.0200
-                                      True         0.1800
-                    True   False      False        0.0050
-                                      True         0.0450
-                           True       False        0.0005
-                                      True         0.0495
-            True    False  False      False        0.0900
-                           True       False        0.0010
-                                      True         0.0090
-                    True   False      False        0.0360
-                                      True         0.3240
-                           True       False        0.0004
-                                      True         0.0396
-            Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
+        >>> bn = hh.examples.sprinkler()
 
-            The cases that don't occur are excluded by default. They can be included by setting
-            the `keep_zeros` parameter to `True`.
+        >>> bn.full_joint_dist()
+        Cloudy  Rain   Sprinkler  Wet grass
+        False   False  False      False        0.2000
+                       True       False        0.0200
+                                  True         0.1800
+                True   False      False        0.0050
+                                  True         0.0450
+                       True       False        0.0005
+                                  True         0.0495
+        True    False  False      False        0.0900
+                       True       False        0.0010
+                                  True         0.0090
+                True   False      False        0.0360
+                                  True         0.3240
+                       True       False        0.0004
+                                  True         0.0396
+        Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
 
-            >>> bn.full_joint_dist(keep_zeros=True)
-            Cloudy  Rain   Sprinkler  Wet grass
-            False   False  False      False        0.2000
-                                      True         0.0000
-                           True       False        0.0200
-                                      True         0.1800
-                    True   False      False        0.0050
-                                      True         0.0450
-                           True       False        0.0005
-                                      True         0.0495
-            True    False  False      False        0.0900
-                                      True         0.0000
-                           True       False        0.0010
-                                      True         0.0090
-                    True   False      False        0.0360
-                                      True         0.3240
-                           True       False        0.0004
-                                      True         0.0396
-            Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
+        The cases that don't occur are excluded by default. They can be included by setting
+        the `keep_zeros` parameter to `True`.
+
+        >>> bn.full_joint_dist(keep_zeros=True)
+        Cloudy  Rain   Sprinkler  Wet grass
+        False   False  False      False        0.2000
+                                  True         0.0000
+                       True       False        0.0200
+                                  True         0.1800
+                True   False      False        0.0050
+                                  True         0.0450
+                       True       False        0.0005
+                                  True         0.0495
+        True    False  False      False        0.0900
+                                  True         0.0000
+                       True       False        0.0010
+                                  True         0.0090
+                True   False      False        0.0360
+                                  True         0.3240
+                       True       False        0.0004
+                                  True         0.0396
+        Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
 
         """
 
@@ -898,7 +921,7 @@ class BayesNet:
         fjd.name = f'P({", ".join(fjd.index.names)})'
         return fjd / fjd.sum()
 
-    def predict_proba(self, X: typing.Union[dict, pd.DataFrame]) -> pd.Series:
+    def predict_proba(self, X: typing.Union[dict, pd.DataFrame]):
         """Return likelihood estimates.
 
         The probabilities are obtained by first computing the full joint distribution. Then, the
@@ -908,8 +931,11 @@ class BayesNet:
         This method is a stepping stone for other functionalities, such as computing the
         log-likelihood. The latter can in turn be used for structure learning.
 
-        Parameters:
-            X: One or more samples.
+        Parameters
+        ----------
+
+        X
+            One or more samples.
 
         """
 
@@ -919,11 +945,14 @@ class BayesNet:
         fjd = self.full_joint_dist().reorder_levels(X.columns)
         return fjd[pd.MultiIndex.from_frame(X)]
 
-    def predict_log_proba(self, X: pd.DataFrame) -> pd.Series:
+    def predict_log_proba(self, X: typing.Union[dict, pd.DataFrame]):
         """Return log-likelihood estimates.
 
-        Parameters:
-            X: Samples.
+        Parameters
+        ----------
+
+        X
+            One or more samples.
 
         """
         return np.log(self.predict_proba(X))
@@ -935,21 +964,22 @@ class BayesNet:
         Each node in a tree has at most one parent. Therefore, the network is not a tree if any of
         its nodes has two or more parents.
 
-        Examples:
+        Examples
+        --------
 
-            >>> import hedgehog as hh
+        >>> import hedgehog as hh
 
-            >>> hh.BayesNet(
-            ...     ('a', 'b'),
-            ...     ('a', 'c')
-            ... ).is_tree
-            True
+        >>> hh.BayesNet(
+        ...     ('a', 'b'),
+        ...     ('a', 'c')
+        ... ).is_tree
+        True
 
-            >>> hh.BayesNet(
-            ...     ('a', 'c'),
-            ...     ('b', 'c')
-            ... ).is_tree
-            False
+        >>> hh.BayesNet(
+        ...     ('a', 'c'),
+        ...     ('b', 'c')
+        ... ).is_tree
+        False
 
         """
         return not any(len(parents) > 1 for parents in self.parents.values())
@@ -960,29 +990,30 @@ class BayesNet:
         In a Bayesian network, the Markov boundary is a minimal Markov blanket. The Markov boundary
         of a node includes its parents, children and the other parents of all of its children.
 
-        Examples:
+        Examples
+        --------
 
-            The following article is taken from the Markov blanket Wikipedia article.
+        The following article is taken from the Markov blanket Wikipedia article.
 
-            >>> import hedgehog as hh
+        >>> import hedgehog as hh
 
-            >>> bn = hh.BayesNet(
-            ...     (0, 3),
-            ...     (1, 4),
-            ...     (2, 5),
-            ...     (3, 6),
-            ...     (4, 6),
-            ...     (5, 8),
-            ...     (6, 8),
-            ...     (6, 9),
-            ...     (7, 9),
-            ...     (7, 10),
-            ...     (8, 11),
-            ...     (8, 12)
-            ... )
+        >>> bn = hh.BayesNet(
+        ...     (0, 3),
+        ...     (1, 4),
+        ...     (2, 5),
+        ...     (3, 6),
+        ...     (4, 6),
+        ...     (5, 8),
+        ...     (6, 8),
+        ...     (6, 9),
+        ...     (7, 9),
+        ...     (7, 10),
+        ...     (8, 11),
+        ...     (8, 12)
+        ... )
 
-            >>> bn.markov_boundary(6)  # corresponds to node A on Wikipedia
-            [3, 4, 5, 7, 8, 9]
+        >>> bn.markov_boundary(6)  # corresponds to node A on Wikipedia
+        [3, 4, 5, 7, 8, 9]
 
         """
         children = self.children.get(node, [])
@@ -993,62 +1024,26 @@ class BayesNet:
             {node}
         )
 
-    def iter_bfs(bn):
-        """Iterate over the nodes in breadth-first search fashion.
-
-        Examples:
-
-            >>> import hedgehog as hh
-
-            >>> bn = hh.examples.asia()
-
-            >>> for node in bn.iter_bfs():
-            ...     print(node)
-            Smoker
-            Visit to Asia
-            Bronchitis
-            Lung cancer
-            Tuberculosis
-            Dispnea
-            TB or cancer
-            Positive X-ray
-
-        """
-
-        q = queue.SimpleQueue()
-        seen = set()
-
-        for root in bn.roots:
-            q.put(root)
-            seen.add(root)
-
-        while not q.empty():
-            node = q.get()
-            yield node
-            for child in bn.children.get(node, []):
-                if child not in seen:
-                    q.put(child)
-                    seen.add(child)
-
     def iter_dfs(self):
         """Iterate over the nodes in depth-first search fashion.
 
-        Examples:
+        Examples
+        --------
 
-            >>> import hedgehog as hh
+        >>> import hedgehog as hh
 
-            >>> bn = hh.examples.asia()
+        >>> bn = hh.examples.asia()
 
-            >>> for node in bn.iter_dfs():
-            ...     print(node)
-            Smoker
-            Bronchitis
-            Dispnea
-            Lung cancer
-            TB or cancer
-            Positive X-ray
-            Visit to Asia
-            Tuberculosis
+        >>> for node in bn.iter_dfs():
+        ...     print(node)
+        Smoker
+        Bronchitis
+        Dispnea
+        Lung cancer
+        TB or cancer
+        Positive X-ray
+        Visit to Asia
+        Tuberculosis
 
         """
 
