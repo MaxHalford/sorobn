@@ -459,7 +459,7 @@ class BayesNet:
                     counts = counts.add(prior, fill_value=0)
 
             # Normalize
-            self._P_sizes[child] = counts.groupby(parents).size()
+            self._P_sizes[child] = counts.groupby(parents).sum()
             self.P[child] = counts / self._P_sizes[child]
 
         # Compute the distribution for each root
@@ -497,21 +497,22 @@ class BayesNet:
         method is that it can potentially reject many samples, and therefore requires a large `n`
         in order to produce reliable estimates.
 
-        Example:
+        Examples
+        --------
 
-            >>> import hedgehog as hh
-            >>> import numpy as np
+        >>> import hedgehog as hh
+        >>> import numpy as np
 
-            >>> np.random.seed(42)
+        >>> np.random.seed(42)
 
-            >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler()
 
-            >>> event = {'Sprinkler': True}
-            >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)
-            Rain
-            False    0.678571
-            True     0.321429
-            Name: P(Rain), dtype: float64
+        >>> event = {'Sprinkler': True}
+        >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)
+        Rain
+        False    0.678571
+        True     0.321429
+        Name: P(Rain), dtype: float64
 
         """
 
@@ -538,21 +539,22 @@ class BayesNet:
         Likelihood weighting is a particular instance of importance sampling. The idea is to
         produce random samples, and weight each sample according to its likelihood.
 
-        Example:
+        Examples
+        --------
 
-            >>> import hedgehog as hh
-            >>> import numpy as np
+        >>> import hedgehog as hh
+        >>> import numpy as np
 
-            >>> np.random.seed(42)
+        >>> np.random.seed(42)
 
-            >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler()
 
-            >>> event = {'Sprinkler': True}
-            >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
-            Rain
-            False    0.765995
-            True     0.234005
-            Name: P(Rain), dtype: float64
+        >>> event = {'Sprinkler': True}
+        >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
+        Rain
+        False    0.765995
+        True     0.234005
+        Name: P(Rain), dtype: float64
 
         """
 
@@ -853,7 +855,7 @@ class BayesNet:
     def _repr_svg_(self):
         return self.graphviz()._repr_svg_()
 
-    def full_joint_dist(self, keep_zeros=False) -> pd.DataFrame:
+    def full_joint_dist(self, *select, keep_zeros=False) -> pd.DataFrame:
         """Return the full joint distribution.
 
         The full joint distribution is obtained by pointwise multiplying all the conditional

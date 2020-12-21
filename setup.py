@@ -23,7 +23,7 @@ setup(
     ],
     extras_require={
         'dev': ['graphviz', 'pytest', 'scikit-learn'],
-        'examples': ['daft', 'matplotlib', 'scikit-learn']
+        'examples': ['daft', 'matplotlib', 'scikit-learn'],
         'gui': ['graphviz', 'streamlit']
     },
     entry_points={

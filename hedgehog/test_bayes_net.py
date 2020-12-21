@@ -22,7 +22,6 @@ def check_partial_fit(bn):
 
     # Fit the parameters of the second BN incrementally
     bn_partial.P = {}
-    bn_partial._P_sizes = {}
     for chunk in np.array_split(samples, 5):
         bn_partial.partial_fit(chunk)
 
