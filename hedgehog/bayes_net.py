@@ -739,7 +739,6 @@ class BayesNet:
 
         query
             The variables for which the posterior distribution is inferred.
-
         event
             The information on which to condition the answer. This can also called the "evidence".
         algorithm
