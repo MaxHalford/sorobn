@@ -153,3 +153,41 @@ def test_indep_vars():
     Name: P(A), dtype: float64
 
     """
+
+def test_cpt_with_index_names():
+    """
+
+    From https://github.com/MaxHalford/hedgehog/issues/19
+
+    """
+
+    edges = pd.DataFrame({"parent": ["A", "B"], "child": "C"})
+    bn = hh.BayesNet(*edges.itertuples(index=False, name=None))
+
+    bn.P['A'] = pd.Series({True: 0.7, False: 0.3})
+    bn.P['B'] = pd.Series({True: 0.4, False: 0.6})
+
+    PC = pd.DataFrame(
+        {
+            "B": [True, True, True, True, False, False, False, False],
+            "A": [True, True, False, False, True, True, False, False],
+            "C": [
+                True,
+                False,
+                True,
+                False,
+                True,
+                False,
+                True,
+                False,
+            ],
+            "p": [1, 0, 0, 1, 0.5, 0.5, 0.001, 0.999],
+        }
+    )
+    bn.P["C"] = PC.set_index(["B", "A", "C"])["p"]
+    bn.prepare()
+
+    pd.testing.assert_series_equal(
+        bn.query("C", event={"B": False, "A": True}),
+        pd.Series([0.5, 0.5], name="P(C)", index=pd.Index([False, True], name="C"))
+    )

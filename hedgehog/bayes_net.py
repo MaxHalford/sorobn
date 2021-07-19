@@ -80,21 +80,21 @@ class CDTAccessor:
         >>> ab
         B  A  C
         F  T  T    0.42
-                F    0.28
-            F  T    0.06
-                F    0.04
+              F    0.28
+           F  T    0.06
+              F    0.04
         T  T  T    0.06
-                F    0.24
-            F  T    0.18
-                F    0.72
+              F    0.24
+           F  T    0.18
+              F    0.72
         dtype: float64
 
         >>> ab.cdt.sum_out('B')
         A  C
         F  F    0.76
-            T    0.24
+           T    0.24
         T  F    0.52
-            T    0.48
+           T    0.48
         dtype: float64
 
         """
@@ -131,13 +131,13 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
     >>> pointwise_mul_two(a, b)
     B  A  C
     F  T  T    0.42
-            F    0.28
-        F  T    0.06
-            F    0.04
+          F    0.28
+       F  T    0.06
+          F    0.04
     T  T  T    0.06
-            F    0.24
-        F  T    0.18
-            F    0.72
+          F    0.24
+       F  T    0.18
+          F    0.72
     dtype: float64
 
     This method returns the Cartesion product in case two don't share any part of their index
@@ -322,11 +322,13 @@ class BayesNet:
         """
 
         for node, P in self.P.items():
+            if node not in self.parents:
+                P.index.name = node
+            elif set(P.index.names) == set([*self.parents[node], node]):
+                P = P.reorder_levels([*self.parents[node], node])
+            else:
+                P.index.names = [*self.parents[node], node]
             P.sort_index(inplace=True)
-            P.index.rename(
-                [*self.parents[node], node] if node in self.parents else node,
-                inplace=True
-            )
             P.name = (
                 f'P({node} | {", ".join(map(str, self.parents[node]))})'
                 if node in self.parents else
