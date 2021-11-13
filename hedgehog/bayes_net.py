@@ -367,59 +367,6 @@ class BayesNet:
 
             yield sample, likelihood
 
-    def _flood_fill_sample(self, init: dict = None):
-
-        # We first define an order in which we'll loop over the nodes
-
-        init = init or {}
-
-        def walk(node, visited):
-
-            if node in visited:
-                return
-
-            yield node, visited
-            visited.add(node)
-
-            for parent in self.parents.get(node, []):
-                yield from walk(parent, visited)
-
-            for child in self.children.get(node, []):
-                yield from walk(child, visited)
-
-        # We start by building P(node | blanket ∩ walk) for each node. That is, the distribution of
-        # the node's values with respect to the intersection of the node's Markov blanket and the
-        # nodes that have been looped over.
-
-        P = {}
-
-        for node, visited in walk(node=self.roots[0], visited=set()):
-
-            p = self.P[node]
-
-            if node in init:
-                p = p[p.index.get_level_values(node) == init[node]]
-
-            if conditioning := list(visited.intersection(self.markov_boundary(node))):
-                p = pointwise_mul([p, pointwise_mul(self.P[c] for c in conditioning)])
-                p = p.groupby([*conditioning, node]).sum()
-                p = p.groupby(conditioning).apply(lambda g: g / g.sum())
-
-            P[node] = p
-
-        while True:
-
-            sample = init.copy()
-
-            for node, visited in walk(node=self.roots[0], visited=set()):
-                p = P[node]
-                if visited:
-                    condition = tuple(sample[c] for c in p.index.names[:-1])
-                    p = p.cdt[condition]
-                sample[node] = p.cdt.sample()
-
-            yield sample
-
     def sample(self, n=1):
         """Generate a new sample at random by using forward sampling.
 
