@@ -19,6 +19,7 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [🎲 Random sampling](#-random-sampling)
   - [🧮 Parameter estimation](#-parameter-estimation)
   - [🧱 Structure learning](#-structure-learning)
+    - [🌳 Chow-Liu trees](#-chow-liu-trees)
   - [👀 Visualization](#-visualization)
   - [👁️ Graphical user interface](#️-graphical-user-interface)
   - [🔢 Support for continuous variables](#-support-for-continuous-variables)
@@ -304,7 +305,16 @@ The same result will be obtained whether you use `fit` once or `partial_fit` mul
 
 ### 🧱 Structure learning
 
-This isn't available yet. I kind of know what I'm doing and there are some sweet algorithms as of 2020. However, it would be nice to take a modern approach and actually take into account causality. Indeed, most structure learning algorithms don't make a difference between different edge directions. Stay tuned!
+#### 🌳 Chow-Liu trees
+
+A Chow-Liu tree is a tree structure that represents a factorised distribution with maximal likelihood. It's essentially the best tree structure that can be found.
+
+```python
+>>> samples = hh.examples.asia().sample(300)
+>>> structure = hh.structure.chow_liu(samples)
+>>> bn = hh.BayesNet(*structure)
+
+```
 
 ### 👀 Visualization
 
