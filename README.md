@@ -17,7 +17,6 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [❓ Missing value imputation](#-missing-value-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
   - [🎲 Random sampling](#-random-sampling)
-  - [🧮 Parameter estimation](#-parameter-estimation)
   - [🧱 Structure learning](#-structure-learning)
     - [🌳 Chow-Liu trees](#-chow-liu-trees)
   - [👀 Visualization](#-visualization)
@@ -309,7 +308,7 @@ You can also specify starting values for a subset of the variables.
 
 ```
 
-There are different sampling methods which you can choose from.
+<!-- There are different sampling methods which you can choose from.
 
 ```python
 >>> pprint(bn.sample(method='backward'))
@@ -326,7 +325,7 @@ There are different sampling methods which you can choose from.
  'John calls': True,
  'Mary calls': False}
 
-```
+``` -->
 
 The supported inference methods are:
 

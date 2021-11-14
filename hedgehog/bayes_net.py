@@ -321,7 +321,7 @@ class BayesNet:
         self.P = {}
         self._P_sizes = {}
 
-    def prepare(self):
+    def prepare(self) -> "BayesNet":
         """Perform house-keeping.
 
         It is highly recommended to call this method whenever the structure and/or the parameters
@@ -342,6 +342,8 @@ class BayesNet:
                 if node in self.parents
                 else f"P({node})"
             )
+
+        return self
 
     def ancestors(self, node):
         """Return a node's ancestors."""
@@ -481,9 +483,7 @@ class BayesNet:
                 self._P_sizes[root] = len(X)
                 self.P[root] = X[root].value_counts(normalize=True)
 
-        self.prepare()
-
-        return self
+        return self.prepare()
 
     def fit(self, X: pd.DataFrame):
         """Find the values of each conditional distribution."""
@@ -525,12 +525,6 @@ class BayesNet:
 
             yield sample, likelihood
 
-    def _backward_sample(
-        self, init: dict = None
-    ) -> typing.Iterator[typing.Tuple[dict, float]]:
-        """Perform backward sampling."""
-        return self._forward_sample(init)
-
     def sample(self, n=1, init: dict = None, method="forward"):
         """Generate a new sample at random by using forward sampling.
 
@@ -542,18 +536,15 @@ class BayesNet:
         init
             Allows forcing certain variables to take on given values.
         method
-            The sampling method to use. Possible choices are: forward, backward.
+            The sampling method to use. Possible choices are: forward.
 
         """
 
         if method == "forward":
             sampler = (sample for sample, _ in self._forward_sample(init))
 
-        elif method == "backward":
-            sampler = (sample for sample, _ in self._backward_sample(init))
-
         else:
-            raise ValueError("Unknown method, must be one of: forward, backward")
+            raise ValueError("Unknown method, must be one of: forward")
 
         if n > 1:
             return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
