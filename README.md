@@ -243,7 +243,7 @@ In other words, `predict_proba` computes `P(event)`, whereas the `query` method 
 
 ```
 
-This also works with a single variable:
+This also works for an event with a single variable:
 
 ```py
 >>> event = {'Alarm': False}
