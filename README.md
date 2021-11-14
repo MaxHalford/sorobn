@@ -330,7 +330,7 @@ You can also specify starting values for a subset of the variables.
 The supported inference methods are:
 
 - `forward` for [forward sampling](https://ermongroup.github.io/cs228-notes/inference/sampling/#forward-sampling).
-- `backward` for [backward sampling](https://arxiv.org/ftp/arxiv/papers/1302/1302.6807.pdf).
+<!--- `backward` for [backward sampling](https://arxiv.org/ftp/arxiv/papers/1302/1302.6807.pdf).-->
 
 ### 🧮 Parameter estimation
 
