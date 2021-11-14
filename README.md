@@ -234,7 +234,23 @@ You can estimate the likelihood of an event with the `predict_proba` method:
 
 ```
 
-In other words, `predict_proba` computes `P(event)`, whereas the `query` method computes `P(query | event)`).
+In other words, `predict_proba` computes `P(event)`, whereas the `query` method computes `P(query | event)`). You may also estimate the likelihood for a partial event. The probabilities for the unobserved variables will be summed out.
+
+```py
+>>> event = {'Alarm': True, 'Burglary': False}
+>>> bn.predict_proba(event)
+0.001576...
+
+```
+
+This also works with a single variable:
+
+```py
+>>> event = {'Alarm': False}
+>>> bn.predict_proba(event)
+0.997483...
+
+```
 
 Note that you can also pass a bunch of events to `predict_proba`, as so:
 

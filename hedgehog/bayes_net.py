@@ -359,7 +359,7 @@ class BayesNet:
         """
         return [node for node in self.nodes if node not in self.parents]
 
-    def full_joint_dist(self, keep_zeros=False) -> pd.DataFrame:
+    def full_joint_dist(self, event: dict = None, keep_zeros=False) -> pd.DataFrame:
         """Return the full joint distribution.
 
         The full joint distribution is obtained by pointwise multiplying all the conditional
@@ -367,6 +367,8 @@ class BayesNet:
 
         Parameters
         ----------
+        event
+            An optional set of values certain variables must take on.
         keep_zeros
             Determines whether or not to include value combinations that don't occur together.
 
@@ -420,7 +422,17 @@ class BayesNet:
 
         """
 
-        fjd = pointwise_mul(self.P.values(), keep_zeros=keep_zeros)
+        def iter_p():
+            if not event:
+                yield from self.P.values()
+                return
+            for p in self.P.values():
+                for var, val in event.items():
+                    if var in p.index.names:
+                        p = p[p.index.get_level_values(var) == val]
+                yield p
+
+        fjd = pointwise_mul(iter_p(), keep_zeros=keep_zeros)
         fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
         fjd.name = f'P({", ".join(fjd.index.names)})'
@@ -530,10 +542,7 @@ class BayesNet:
         """
 
         if method == "joint":
-            fjd = self.full_joint_dist()
-            if init:
-                for var, val in init.items():
-                    fjd = fjd[fjd.index.get_level_values(var) == val]
+            fjd = self.full_joint_dist(event=init)
             samples = fjd.sample(n=n, weights=fjd.values)
             if n > 1:
                 return samples.index.to_frame()
@@ -935,8 +944,16 @@ class BayesNet:
         if isinstance(X, dict):
             return self.predict_proba(pd.DataFrame([X])).iloc[0]
 
-        fjd = self.full_joint_dist().reorder_levels(X.columns)
-        return fjd[pd.MultiIndex.from_frame(X)]
+        fjd = self.full_joint_dist()
+
+        if to_drop := set(fjd.index.names) - set(X.columns):
+            fjd = fjd.droplevel(list(to_drop))
+            fjd = fjd.groupby(fjd.index.names).sum()
+
+        if len(fjd.index.names) > 1:
+            fjd = fjd.reorder_levels(X.columns)
+            return fjd[pd.MultiIndex.from_frame(X)]
+        return fjd
 
     def predict_log_proba(self, X: typing.Union[dict, pd.DataFrame]):
         """Return log-likelihood estimates.
