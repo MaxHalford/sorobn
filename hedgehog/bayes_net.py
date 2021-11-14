@@ -262,12 +262,11 @@ class BayesNet:
 
     Parameters
     ----------
-
-    structure (list of tuples)
+    structure
         Each tuple denotes a (parent, child) connection. A CycleError is raised if the
         structure is not acyclic.
 
-    prior_count (int)
+    prior_count
         If provided, artificial samples will be used to compute each conditional
         probability distribution, in addition to provided samples. As a consequence, each
         combination of parent(s)/child(ren) values will appear prior_count times. The
@@ -276,7 +275,6 @@ class BayesNet:
 
     Attributes
     ----------
-
     nodes (list)
         The node names sorted in topological order. Iterating over this is equivalent to performing
         a breadth-first search.
@@ -361,6 +359,73 @@ class BayesNet:
         """
         return [node for node in self.nodes if node not in self.parents]
 
+    def full_joint_dist(self, keep_zeros=False) -> pd.DataFrame:
+        """Return the full joint distribution.
+
+        The full joint distribution is obtained by pointwise multiplying all the conditional
+        probability tables with each other and normalizing the result.
+
+        Parameters
+        ----------
+        keep_zeros
+            Determines whether or not to include value combinations that don't occur together.
+
+        Examples
+        --------
+
+        >>> import hedgehog as hh
+
+        >>> bn = hh.examples.sprinkler()
+
+        >>> bn.full_joint_dist()
+        Cloudy  Rain   Sprinkler  Wet grass
+        False   False  False      False        0.2000
+                       True       False        0.0200
+                                  True         0.1800
+                True   False      False        0.0050
+                                  True         0.0450
+                       True       False        0.0005
+                                  True         0.0495
+        True    False  False      False        0.0900
+                       True       False        0.0010
+                                  True         0.0090
+                True   False      False        0.0360
+                                  True         0.3240
+                       True       False        0.0004
+                                  True         0.0396
+        Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
+
+        The cases that don't occur are excluded by default. They can be included by setting
+        the `keep_zeros` parameter to `True`.
+
+        >>> bn.full_joint_dist(keep_zeros=True)
+        Cloudy  Rain   Sprinkler  Wet grass
+        False   False  False      False        0.2000
+                                  True         0.0000
+                       True       False        0.0200
+                                  True         0.1800
+                True   False      False        0.0050
+                                  True         0.0450
+                       True       False        0.0005
+                                  True         0.0495
+        True    False  False      False        0.0900
+                                  True         0.0000
+                       True       False        0.0010
+                                  True         0.0090
+                True   False      False        0.0360
+                                  True         0.3240
+                       True       False        0.0004
+                                  True         0.0396
+        Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
+
+        """
+
+        fjd = pointwise_mul(self.P.values(), keep_zeros=keep_zeros)
+        fjd = fjd.reorder_levels(sorted(fjd.index.names))
+        fjd = fjd.sort_index()
+        fjd.name = f'P({", ".join(fjd.index.names)})'
+        return fjd / fjd.sum()
+
     def partial_fit(self, X: pd.DataFrame):
         """Update the parameters of each conditional distribution."""
 
@@ -415,10 +480,12 @@ class BayesNet:
         self._P_sizes = {}
         return self.partial_fit(X)
 
-    def _forward_sample(self, init: dict = None):
+    def _forward_sample(
+        self, init: dict = None
+    ) -> typing.Iterator[typing.Tuple[dict, float]]:
         """Perform forward sampling.
 
-        This is also known as "ancestral sampling", "prior sampling", or "logic sampling".
+        This is also known as "ancestral sampling" or "prior sampling".
 
         """
 
@@ -447,16 +514,37 @@ class BayesNet:
 
             yield sample, likelihood
 
-    def sample(self, n=1, init: dict = None):
+    def sample(self, n=1, init: dict = None, method="forward"):
         """Generate a new sample at random by using forward sampling.
 
-        Parameters:
-            n: Number of samples to produce. A DataFrame is returned if `n > 1`. A dictionary is
-                returned if not.
+        Parameters
+        ----------
+        n
+            Number of samples to produce. A DataFrame is returned if `n > 1`. A dictionary is
+            returned if not.
+        init
+            Allows forcing certain variables to take on given values.
+        method
+            The sampling method to use. Possible choices are: forward, joint.
 
         """
 
-        sampler = (sample for sample, _ in self._forward_sample(init))
+        if method == "joint":
+            fjd = self.full_joint_dist()
+            if init:
+                fjd = fjd.query(
+                    " and ".join(f"{var} == {val}" for var, val in init.items())
+                )
+            samples = fjd.sample(n=n, weights=fjd.values)
+            if n > 1:
+                return samples.index.to_frame()
+            return dict(zip(samples.index.names, samples.index[0]))
+
+        elif method == "forward":
+            sampler = (sample for sample, _ in self._forward_sample(init))
+
+        else:
+            raise ValueError("Unknown method, must be one of: forward, joint")
 
         if n > 1:
             return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
@@ -778,11 +866,9 @@ class BayesNet:
 
         Parameters
         ----------
-
         sample
             The sample for which the missing values need replacing. The missing values are expected
             to be represented with `None`.
-
         query_params
             The rest of the keyword arguments for specifying what parameters to call the `query`
             method with.
@@ -830,74 +916,6 @@ class BayesNet:
     def _repr_svg_(self):
         return self.graphviz()._repr_svg_()
 
-    def full_joint_dist(self, *select, keep_zeros=False) -> pd.DataFrame:
-        """Return the full joint distribution.
-
-        The full joint distribution is obtained by pointwise multiplying all the conditional
-        probability tables with each other and normalizing the result.
-
-        Parameters
-        ----------
-
-        keep_zeros
-            Determines whether or not to include value combinations that don't occur together.
-
-        Examples
-        --------
-
-        >>> import hedgehog as hh
-
-        >>> bn = hh.examples.sprinkler()
-
-        >>> bn.full_joint_dist()
-        Cloudy  Rain   Sprinkler  Wet grass
-        False   False  False      False        0.2000
-                       True       False        0.0200
-                                  True         0.1800
-                True   False      False        0.0050
-                                  True         0.0450
-                       True       False        0.0005
-                                  True         0.0495
-        True    False  False      False        0.0900
-                       True       False        0.0010
-                                  True         0.0090
-                True   False      False        0.0360
-                                  True         0.3240
-                       True       False        0.0004
-                                  True         0.0396
-        Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
-
-        The cases that don't occur are excluded by default. They can be included by setting
-        the `keep_zeros` parameter to `True`.
-
-        >>> bn.full_joint_dist(keep_zeros=True)
-        Cloudy  Rain   Sprinkler  Wet grass
-        False   False  False      False        0.2000
-                                  True         0.0000
-                       True       False        0.0200
-                                  True         0.1800
-                True   False      False        0.0050
-                                  True         0.0450
-                       True       False        0.0005
-                                  True         0.0495
-        True    False  False      False        0.0900
-                                  True         0.0000
-                       True       False        0.0010
-                                  True         0.0090
-                True   False      False        0.0360
-                                  True         0.3240
-                       True       False        0.0004
-                                  True         0.0396
-        Name: P(Cloudy, Rain, Sprinkler, Wet grass), dtype: float64
-
-        """
-
-        fjd = pointwise_mul(self.P.values(), keep_zeros=keep_zeros)
-        fjd = fjd.reorder_levels(sorted(fjd.index.names))
-        fjd = fjd.sort_index()
-        fjd.name = f'P({", ".join(fjd.index.names)})'
-        return fjd / fjd.sum()
-
     def predict_proba(self, X: typing.Union[dict, pd.DataFrame]):
         """Return likelihood estimates.
 
@@ -910,7 +928,6 @@ class BayesNet:
 
         Parameters
         ----------
-
         X
             One or more samples.
 
@@ -927,7 +944,6 @@ class BayesNet:
 
         Parameters
         ----------
-
         X
             One or more samples.
 

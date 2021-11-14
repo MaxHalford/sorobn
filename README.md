@@ -293,6 +293,23 @@ You can also specify starting values for a subset of the variables.
 
 ```
 
+There are different sampling methods which you can choose from.
+
+```python
+>>> pprint(bn.sample(method="joint"))
+{'Alarm': False,
+ 'Burglary': False,
+ 'Earthquake': False,
+ 'John calls': False,
+ 'Mary calls': False}
+
+```
+
+The supported inference methods are:
+
+- `forward` for [forward sampling](https://ermongroup.github.io/cs228-notes/inference/sampling/#forward-sampling).
+- `joint` for sampling from the [full joint distribution](https://www.wikiwand.com/en/Joint_probability_distribution).
+
 ### 🧮 Parameter estimation
 
 You can determine the values of the P from a dataset. This is a straightforward procedure, as it only requires performing a [`groupby`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html) followed by a [`value_counts`](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.Series.value_counts.html) for each CPT.
