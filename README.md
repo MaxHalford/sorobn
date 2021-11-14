@@ -312,18 +312,18 @@ You can also specify starting values for a subset of the variables.
 There are different sampling methods which you can choose from.
 
 ```python
->>> pprint(bn.sample(method='joint'))
+>>> pprint(bn.sample(method='backward'))
 {'Alarm': False,
  'Burglary': False,
  'Earthquake': False,
  'John calls': False,
  'Mary calls': False}
 
->>> pprint(bn.sample(init={'Earthquake': True}, method='joint'))
-{'Alarm': False,
+>>> pprint(bn.sample(init={'Earthquake': True}, method='backward'))
+{'Alarm': True,
  'Burglary': False,
  'Earthquake': True,
- 'John calls': False,
+ 'John calls': True,
  'Mary calls': False}
 
 ```
@@ -331,7 +331,7 @@ There are different sampling methods which you can choose from.
 The supported inference methods are:
 
 - `forward` for [forward sampling](https://ermongroup.github.io/cs228-notes/inference/sampling/#forward-sampling).
-- `joint` for sampling from the [full joint distribution](https://www.wikiwand.com/en/Joint_probability_distribution).
+- `backward` for [backward sampling](https://arxiv.org/ftp/arxiv/papers/1302/1302.6807.pdf).
 
 ### 🧮 Parameter estimation
 

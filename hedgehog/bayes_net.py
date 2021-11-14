@@ -422,17 +422,7 @@ class BayesNet:
 
         """
 
-        def iter_p():
-            if not event:
-                yield from self.P.values()
-                return
-            for p in self.P.values():
-                for var, val in event.items():
-                    if var in p.index.names:
-                        p = p[p.index.get_level_values(var) == val]
-                yield p
-
-        fjd = pointwise_mul(iter_p(), keep_zeros=keep_zeros)
+        fjd = pointwise_mul(self.P.values(), keep_zeros=keep_zeros)
         fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
         fjd.name = f'P({", ".join(fjd.index.names)})'
@@ -526,6 +516,12 @@ class BayesNet:
 
             yield sample, likelihood
 
+    def _backward_sample(
+        self, init: dict = None
+    ) -> typing.Iterator[typing.Tuple[dict, float]]:
+        """Perform backward sampling."""
+        return self._forward_sample(init)
+
     def sample(self, n=1, init: dict = None, method="forward"):
         """Generate a new sample at random by using forward sampling.
 
@@ -537,22 +533,18 @@ class BayesNet:
         init
             Allows forcing certain variables to take on given values.
         method
-            The sampling method to use. Possible choices are: forward, joint.
+            The sampling method to use. Possible choices are: forward, backward.
 
         """
 
-        if method == "joint":
-            fjd = self.full_joint_dist(event=init)
-            samples = fjd.sample(n=n, weights=fjd.values)
-            if n > 1:
-                return samples.index.to_frame()
-            return dict(zip(samples.index.names, samples.index[0]))
-
-        elif method == "forward":
+        if method == "forward":
             sampler = (sample for sample, _ in self._forward_sample(init))
 
+        elif method == "backward":
+            sampler = (sample for sample, _ in self._backward_sample(init))
+
         else:
-            raise ValueError("Unknown method, must be one of: forward, joint")
+            raise ValueError("Unknown method, must be one of: forward, backward")
 
         if n > 1:
             return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
@@ -946,12 +938,11 @@ class BayesNet:
 
         fjd = self.full_joint_dist()
 
-        if to_drop := set(fjd.index.names) - set(X.columns):
-            fjd = fjd.droplevel(list(to_drop))
+        if unobserved := set(fjd.index.names) - set(X.columns):
+            fjd = fjd.droplevel(list(unobserved))
             fjd = fjd.groupby(fjd.index.names).sum()
 
         if len(fjd.index.names) > 1:
-            fjd = fjd.reorder_levels(X.columns)
             return fjd[pd.MultiIndex.from_frame(X)]
         return fjd
 
