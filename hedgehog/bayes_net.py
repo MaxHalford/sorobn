@@ -345,54 +345,21 @@ class BayesNet:
                 else f"P({node})"
             )
 
-    def _forward_sample(self, init: dict = None):
-        """Perform forward sampling.
+    def ancestors(self, node):
+        """Return a node's ancestors."""
+        parents = self.parents.get(node, ())
+        if parents:
+            return set(parents) | set.union(*[self.ancestors(p) for p in parents])
+        return set()
 
-        This is also known as "ancestral sampling", "prior sampling", or "logic sampling".
+    @property
+    def roots(self):
+        """Return the network's roots.
 
-        """
-
-        init = init or {}
-
-        while True:
-
-            sample = {}
-            likelihood = 1.0
-
-            for node in self.nodes:
-
-                # Access P(node | parents(node))
-                P = self.P[node]
-                if node in self.parents:
-                    condition = tuple(sample[parent] for parent in self.parents[node])
-                    P = P.cdt[condition]
-
-                if node in init:
-                    node_value = init[node]
-                else:
-                    node_value = P.cdt.sample()
-
-                sample[node] = node_value
-                likelihood *= P.get(node_value, 0)
-
-            yield sample, likelihood
-
-    def sample(self, n=1, init: dict = None):
-        """Generate a new sample at random by using forward sampling.
-
-        Parameters:
-            n: Number of samples to produce. A DataFrame is returned if `n > 1`. A dictionary is
-                returned if not.
+        A root is a node that has no parent.
 
         """
-
-        sampler = (sample for sample, _ in self._forward_sample(init))
-
-        if n > 1:
-            return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
-                axis="columns"
-            )
-        return next(sampler)
+        return [node for node in self.nodes if node not in self.parents]
 
     def partial_fit(self, X: pd.DataFrame):
         """Update the parameters of each conditional distribution."""
@@ -447,6 +414,55 @@ class BayesNet:
         self.P = {}
         self._P_sizes = {}
         return self.partial_fit(X)
+
+    def _forward_sample(self, init: dict = None):
+        """Perform forward sampling.
+
+        This is also known as "ancestral sampling", "prior sampling", or "logic sampling".
+
+        """
+
+        init = init or {}
+
+        while True:
+
+            sample = {}
+            likelihood = 1.0
+
+            for node in self.nodes:
+
+                # Access P(node | parents(node))
+                P = self.P[node]
+                if node in self.parents:
+                    condition = tuple(sample[parent] for parent in self.parents[node])
+                    P = P.cdt[condition]
+
+                if node in init:
+                    node_value = init[node]
+                else:
+                    node_value = P.cdt.sample()
+
+                sample[node] = node_value
+                likelihood *= P.get(node_value, 0)
+
+            yield sample, likelihood
+
+    def sample(self, n=1, init: dict = None):
+        """Generate a new sample at random by using forward sampling.
+
+        Parameters:
+            n: Number of samples to produce. A DataFrame is returned if `n > 1`. A dictionary is
+                returned if not.
+
+        """
+
+        sampler = (sample for sample, _ in self._forward_sample(init))
+
+        if n > 1:
+            return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
+                axis="columns"
+            )
+        return next(sampler)
 
     def _rejection_sampling(self, *query, event, n_iterations):
         """Answer a query using rejection sampling.
@@ -673,22 +689,6 @@ class BayesNet:
             list(set(posterior.index.names) - set(query))
         )
         return posterior
-
-    def ancestors(self, node):
-        """Return a node's ancestors."""
-        parents = self.parents.get(node, ())
-        if parents:
-            return set(parents) | set.union(*[self.ancestors(p) for p in parents])
-        return set()
-
-    @property
-    def roots(self):
-        """Return the network's roots.
-
-        A root is a node that has no parent.
-
-        """
-        return [node for node in self.nodes if node not in self.parents]
 
     def query(
         self,
