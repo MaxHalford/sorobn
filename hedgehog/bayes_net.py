@@ -532,9 +532,8 @@ class BayesNet:
         if method == "joint":
             fjd = self.full_joint_dist()
             if init:
-                fjd = fjd.query(
-                    " and ".join(f"{var} == {val}" for var, val in init.items())
-                )
+                for var, val in init.items():
+                    fjd = fjd[fjd.index.get_level_values(var) == val]
             samples = fjd.sample(n=n, weights=fjd.values)
             if n > 1:
                 return samples.index.to_frame()

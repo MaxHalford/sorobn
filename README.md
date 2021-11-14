@@ -296,10 +296,17 @@ You can also specify starting values for a subset of the variables.
 There are different sampling methods which you can choose from.
 
 ```python
->>> pprint(bn.sample(method="joint"))
+>>> pprint(bn.sample(method='joint'))
 {'Alarm': False,
  'Burglary': False,
  'Earthquake': False,
+ 'John calls': False,
+ 'Mary calls': False}
+
+>>> pprint(bn.sample(init={'Earthquake': True}, method='joint'))
+{'Alarm': False,
+ 'Burglary': False,
+ 'Earthquake': True,
  'John calls': False,
  'Mary calls': False}
 
