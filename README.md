@@ -261,7 +261,7 @@ Name: P(Alarm, Burglary, Earthquake, John calls, Mary calls), dtype: float64
 
 ### 🎲 Random sampling
 
-You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and it's conditional probability tables.
+You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and its conditional probability tables.
 
 ```python
 >>> pprint(bn.sample())
@@ -278,6 +278,18 @@ You can use a Bayesian network to generate random samples. The samples will foll
 2   False     False       False       False       False
 3   False     False       False        True       False
 4   False     False       False       False       False
+
+```
+
+You can also specify starting values for a subset of the variables.
+
+```python
+>>> pprint(bn.sample(init={'Alarm': True, 'Burglary': True}))
+{'Alarm': True,
+ 'Burglary': True,
+ 'Earthquake': False,
+ 'John calls': True,
+ 'Mary calls': True}
 
 ```
 

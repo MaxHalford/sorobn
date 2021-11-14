@@ -10,10 +10,10 @@ import pandas as pd
 import vose
 
 
-__all__ = ['BayesNet']
+__all__ = ["BayesNet"]
 
 
-@pd.api.extensions.register_series_accessor('cdt')
+@pd.api.extensions.register_series_accessor("cdt")
 class CDTAccessor:
     """
 
@@ -37,7 +37,7 @@ class CDTAccessor:
         if self.sampler is None:
             self.sampler = vose.Sampler(
                 weights=self.series.to_numpy(dtype=float),
-                seed=np.random.randint(2 ** 16)
+                seed=np.random.randint(2 ** 16),
             )
         idx = self.sampler.sample()
         return self.series.index[idx]
@@ -233,10 +233,16 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
 
     # Return the Cartesion product if the index names have nothing in common with each other
     if not set(left.index.names) & set(right.index.names):
-        cart = pd.DataFrame(np.outer(left, right), index=left.index, columns=right.index)
+        cart = pd.DataFrame(
+            np.outer(left, right), index=left.index, columns=right.index
+        )
         return cart.stack(list(range(cart.columns.nlevels)))
 
-    index, l_idx, r_idx, = left.index.join(right.index, how='inner', return_indexers=True)
+    (
+        index,
+        l_idx,
+        r_idx,
+    ) = left.index.join(right.index, how="inner", return_indexers=True)
     if l_idx is None:
         l_idx = np.arange(len(left))
     if r_idx is None:
@@ -295,13 +301,17 @@ class BayesNet:
         self.children = collections.defaultdict(set)
 
         for parents, children in edges:
-            for parent, child in itertools.product(coerce_list(parents), coerce_list(children)):
+            for parent, child in itertools.product(
+                coerce_list(parents), coerce_list(children)
+            ):
                 self.parents[child].add(parent)
                 self.children[parent].add(child)
 
         # collections.defaultdict(set) -> dict(list)
-        self.parents = {node: list(sorted(parents)) for node, parents in self.parents.items()}
-        self.children = {node: list(sorted(children)) for node, children in self.children.items()}
+        self.parents = {node: sorted(parents) for node, parents in self.parents.items()}
+        self.children = {
+            node: sorted(children) for node, children in self.children.items()
+        }
 
         # The nodes are sorted in topological order. Nodes of the same level are sorted in
         # lexicographic order.
@@ -331,14 +341,14 @@ class BayesNet:
             P.sort_index(inplace=True)
             P.name = (
                 f'P({node} | {", ".join(map(str, self.parents[node]))})'
-                if node in self.parents else
-                f'P({node})'
+                if node in self.parents
+                else f"P({node})"
             )
 
     def _forward_sample(self, init: dict = None):
         """Perform forward sampling.
 
-        This is also known as "ancestral sampling", as well as "prior sampling".
+        This is also known as "ancestral sampling", "prior sampling", or "logic sampling".
 
         """
 
@@ -347,7 +357,7 @@ class BayesNet:
         while True:
 
             sample = {}
-            likelihood = 1.
+            likelihood = 1.0
 
             for node in self.nodes:
 
@@ -367,13 +377,8 @@ class BayesNet:
 
             yield sample, likelihood
 
-    def sample(self, n=1):
+    def sample(self, n=1, init: dict = None):
         """Generate a new sample at random by using forward sampling.
-
-        Although the idea is to implement forward sampling, the implementation
-        actually works backwards, starting from the leaf nodes. For every node, we recursively
-        check that values have been sampled for each parent node. Once a value has been chosen for
-        each parent, we can pick the according distribution and sample from it.
 
         Parameters:
             n: Number of samples to produce. A DataFrame is returned if `n > 1`. A dictionary is
@@ -381,11 +386,13 @@ class BayesNet:
 
         """
 
-        samples = (sample for sample, _ in self._forward_sample())
+        sampler = (sample for sample, _ in self._forward_sample(init))
 
         if n > 1:
-            return pd.DataFrame(next(samples) for _ in range(n)).sort_index(axis='columns')
-        return next(samples)
+            return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
+                axis="columns"
+            )
+        return next(sampler)
 
     def partial_fit(self, X: pd.DataFrame):
         """Update the parameters of each conditional distribution."""
@@ -403,8 +410,12 @@ class BayesNet:
             else:
                 counts = X.groupby(parents + [child]).size()
                 if self.prior_count:
-                    combos = itertools.product(*[X[var].unique() for var in parents + [child]])
-                    prior = pd.Series(1, pd.MultiIndex.from_tuples(combos, names=parents + [child]))
+                    combos = itertools.product(
+                        *[X[var].unique() for var in parents + [child]]
+                    )
+                    prior = pd.Series(
+                        1, pd.MultiIndex.from_tuples(combos, names=parents + [child])
+                    )
                     counts = counts.add(prior, fill_value=0)
 
             # Normalize
@@ -467,9 +478,10 @@ class BayesNet:
 
         # We don't know many samples we won't reject, therefore we cannot preallocate arrays
         samples = {var: [] for var in query}
+        sampler = (sample for sample, _ in self._forward_sample())
 
         for _ in range(n_iterations):
-            sample = self.sample()
+            sample = next(sampler)
 
             # Reject if the sample is not consistent with the specified events
             if any(sample[var] != val for var, val in event.items()):
@@ -523,8 +535,8 @@ class BayesNet:
             likelihoods[i] = likelihood
 
         # Now we aggregate the resulting samples according to their associated likelihoods
-        results = pd.DataFrame({'likelihood': likelihoods, **samples})
-        results = results.groupby(list(query))['likelihood'].mean()
+        results = pd.DataFrame({"likelihood": likelihoods, **samples})
+        results = results.groupby(list(query))["likelihood"].mean()
         results /= results.sum()
 
         return results
@@ -567,7 +579,9 @@ class BayesNet:
 
         for node in nonevents:
 
-            post = pointwise_mul(self.P[node] for node in [node, *self.children.get(node, [])])
+            post = pointwise_mul(
+                self.P[node] for node in [node, *self.children.get(node, [])]
+            )
 
             if boundary := self.markov_boundary(node):
                 post = post.groupby(boundary).apply(lambda g: g / g.sum())
@@ -578,7 +592,7 @@ class BayesNet:
             boundaries[node] = boundary
 
         # Start with a random sample
-        state = next(self._forward_sample(init=event))[0]
+        state = self.sample(init=event)
 
         samples = {var: [None] * n_iterations for var in query}
         cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
@@ -655,7 +669,9 @@ class BayesNet:
         # Pointwise multiply the rest of the factors and normalize the result
         posterior = pointwise_mul(factors)
         posterior = posterior / posterior.sum()
-        posterior.index = posterior.index.droplevel(list(set(posterior.index.names) - set(query)))
+        posterior.index = posterior.index.droplevel(
+            list(set(posterior.index.names) - set(query))
+        )
         return posterior
 
     def ancestors(self, node):
@@ -674,8 +690,13 @@ class BayesNet:
         """
         return [node for node in self.nodes if node not in self.parents]
 
-    def query(self, *query: typing.Tuple[str], event: dict, algorithm='exact',
-              n_iterations=100) -> pd.Series:
+    def query(
+        self,
+        *query: typing.Tuple[str],
+        event: dict,
+        algorithm="exact",
+        n_iterations=100,
+    ) -> pd.Series:
         """Answer a probabilistic query.
 
         Exact inference is performed by default. However, this might be too slow depending on the
@@ -714,27 +735,33 @@ class BayesNet:
         """
 
         if not query:
-            raise ValueError('At least one query variable has to be specified')
+            raise ValueError("At least one query variable has to be specified")
 
         for q in query:
             if q in event:
-                raise ValueError('A query variable cannot be part of the event')
+                raise ValueError("A query variable cannot be part of the event")
 
-        if algorithm == 'exact':
+        if algorithm == "exact":
             answer = self._variable_elimination(*query, event=event)
 
-        elif algorithm == 'gibbs':
-            answer = self._gibbs_sampling(*query, event=event, n_iterations=n_iterations)
+        elif algorithm == "gibbs":
+            answer = self._gibbs_sampling(
+                *query, event=event, n_iterations=n_iterations
+            )
 
-        elif algorithm == 'likelihood':
+        elif algorithm == "likelihood":
             answer = self._llh_weighting(*query, event=event, n_iterations=n_iterations)
 
-        elif algorithm == 'rejection':
-            answer = self._rejection_sampling(*query, event=event, n_iterations=n_iterations)
+        elif algorithm == "rejection":
+            answer = self._rejection_sampling(
+                *query, event=event, n_iterations=n_iterations
+            )
 
         else:
-            raise ValueError('Unknown algorithm, must be one of: exact, gibbs, likelihood, ' +
-                             'rejection')
+            raise ValueError(
+                "Unknown algorithm, must be one of: exact, gibbs, likelihood, "
+                + "rejection"
+            )
 
         answer = answer.rename(f'P({", ".join(query)})')
 
@@ -968,10 +995,9 @@ class BayesNet:
         """
         children = self.children.get(node, [])
         return sorted(
-            set(self.parents.get(node, [])) |
-            set(children) |
-            set().union(*[self.parents[child] for child in children]) -
-            {node}
+            set(self.parents.get(node, []))
+            | set(children)
+            | set().union(*[self.parents[child] for child in children]) - {node}
         )
 
     def iter_dfs(self):
