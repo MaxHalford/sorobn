@@ -354,10 +354,19 @@ class BayesNet:
     def roots(self):
         """Return the network's roots.
 
-        A root is a node that has no parent.
+        A root is a node that doesn't have any parents.
 
         """
         return [node for node in self.nodes if node not in self.parents]
+
+    @property
+    def leaves(self):
+        """Return the network's leaves.
+
+        A root is a node that doesn't have any children.
+
+        """
+        return [node for node in self.nodes if node not in self.children]
 
     def full_joint_dist(self, event: dict = None, keep_zeros=False) -> pd.DataFrame:
         """Return the full joint distribution.
