@@ -343,8 +343,6 @@ class BayesNet:
                 else f"P({node})"
             )
 
-        return self
-
     def ancestors(self, node):
         """Return a node's ancestors."""
         parents = self.parents.get(node, ())
@@ -483,7 +481,8 @@ class BayesNet:
                 self._P_sizes[root] = len(X)
                 self.P[root] = X[root].value_counts(normalize=True)
 
-        return self.prepare()
+        self.prepare()
+        return self
 
     def fit(self, X: pd.DataFrame):
         """Find the values of each conditional distribution."""
@@ -914,7 +913,7 @@ class BayesNet:
         return G
 
     def _repr_svg_(self):
-        return self.graphviz()._repr_svg_()
+        return self.graphviz()
 
     def predict_proba(self, X: typing.Union[dict, pd.DataFrame]):
         """Return likelihood estimates.
@@ -943,7 +942,7 @@ class BayesNet:
             fjd = fjd.groupby(fjd.index.names).sum()
 
         if len(fjd.index.names) > 1:
-            return fjd[pd.MultiIndex.from_frame(X)]
+            return fjd[pd.MultiIndex.from_frame(X[fjd.index.names])]
         return fjd
 
     def predict_log_proba(self, X: typing.Union[dict, pd.DataFrame]):

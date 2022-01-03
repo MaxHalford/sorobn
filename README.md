@@ -311,14 +311,14 @@ You can also specify starting values for a subset of the variables.
 <!-- There are different sampling methods which you can choose from.
 
 ```python
->>> pprint(bn.sample(method='backward'))
+> pprint(bn.sample(method='backward'))
 {'Alarm': False,
  'Burglary': False,
  'Earthquake': False,
  'John calls': False,
  'Mary calls': False}
 
->>> pprint(bn.sample(init={'Earthquake': True}, method='backward'))
+> pprint(bn.sample(init={'Earthquake': True}, method='backward'))
 {'Alarm': True,
  'Burglary': False,
  'Earthquake': True,

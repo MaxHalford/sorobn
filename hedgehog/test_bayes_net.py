@@ -1,6 +1,7 @@
 import copy
 import importlib
 import inspect
+import itertools
 import math
 import random
 
@@ -191,3 +192,18 @@ def test_cpt_with_index_names():
         bn.query("C", event={"B": False, "A": True}),
         pd.Series([0.5, 0.5], name="P(C)", index=pd.Index([False, True], name="C"))
     )
+
+def test_predict_proba_order_doesnt_matter():
+
+    bn = hh.examples.alarm()
+    event = {
+        'Alarm': False,
+        'Burglary': False,
+        'Earthquake': True,
+        'John calls': False,
+        'Mary calls': False
+    }
+
+    for order in itertools.permutations(event.keys()):
+        ordered_event = {var: event[var] for var in order}
+        assert math.isclose(bn.predict_proba(ordered_event), bn.predict_proba(event))
