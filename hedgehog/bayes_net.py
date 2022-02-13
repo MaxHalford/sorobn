@@ -37,7 +37,7 @@ class CDTAccessor:
         if self.sampler is None:
             self.sampler = vose.Sampler(
                 weights=self.series.to_numpy(dtype=float),
-                seed=np.random.randint(2 ** 16),
+                seed=np.random.randint(2**16),
             )
         idx = self.sampler.sample()
         return self.series.index[idx]
@@ -579,6 +579,9 @@ class BayesNet:
 
         """
 
+        if not query:
+            query = self.nodes
+
         # We don't know many samples we won't reject, therefore we cannot preallocate arrays
         samples = {var: [] for var in query}
         sampler = (sample for sample, _ in self._forward_sample())
@@ -795,7 +798,7 @@ class BayesNet:
         ----------
 
         query
-            The variables for which the posterior distribution is inferred.
+            The variables for which the posterior distribution is to be inferred.
         event
             The information on which to condition the answer. This can also called the "evidence".
         algorithm
@@ -822,11 +825,7 @@ class BayesNet:
         """
 
         if not query:
-            raise ValueError("At least one query variable has to be specified")
-
-        for q in query:
-            if q in event:
-                raise ValueError("A query variable cannot be part of the event")
+            query = self.nodes
 
         if algorithm == "exact":
             answer = self._variable_elimination(*query, event=event)
