@@ -37,7 +37,7 @@ class CDTAccessor:
         if self.sampler is None:
             self.sampler = vose.Sampler(
                 weights=self.series.to_numpy(dtype=float),
-                seed=np.random.randint(2 ** 16),
+                seed=np.random.randint(2**16),
             )
         idx = self.sampler.sample()
         return self.series.index[idx]
@@ -523,6 +523,42 @@ class BayesNet:
                 likelihood *= P.get(node_value, 0)
 
             yield sample, likelihood
+
+    def _flood_fill_sample(self):
+
+        seen = set()
+        sample = {}
+        q = queue.SimpleQueue()
+        for leaf in self.leaves:
+            q.put(leaf)
+            seen.add(leaf)
+
+        while q.qsize():
+            current = q.get()
+            children = self.children.get(current, [])
+            parents = self.parents.get(current, [])
+            for node in children + parents:
+                if node not in seen:
+                    q.put(node)
+                    seen.add(node)
+
+            relevant = (set(children) | set(parents)) & sample.keys()
+
+            print(current)
+            P = self.full_joint_dist().copy()
+            print(P)
+            print()
+            P = P.cdt.sum_out(*(set(P.index.names) - {current, *sample.keys()}))
+            print(P)
+            # print(set(children), set(parents), set(sample.keys()))
+            # print((set(children) | set(parents)) - sample.keys())
+
+            # print(P)
+            print()
+            print("-" * 20)
+            print()
+
+            sample[current] = True
 
     def sample(self, n=1, init: dict = None, method="forward"):
         """Generate a new sample at random by using forward sampling.
