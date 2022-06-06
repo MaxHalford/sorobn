@@ -384,7 +384,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.sprinkler()
 
@@ -563,7 +563,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
         >>> import numpy as np
 
         >>> np.random.seed(42)
@@ -606,7 +606,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
         >>> import numpy as np
 
         >>> np.random.seed(42)
@@ -657,7 +657,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
         >>> import numpy as np
 
         >>> np.random.seed(42)
@@ -728,7 +728,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.sprinkler()
 
@@ -806,7 +806,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.asia()
 
@@ -966,7 +966,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> hh.BayesNet(
         ...     ('a', 'b'),
@@ -994,7 +994,7 @@ class BayesNet:
 
         The following article is taken from the Markov blanket Wikipedia article.
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.BayesNet(
         ...     (0, 3),
@@ -1028,7 +1028,7 @@ class BayesNet:
         Examples
         --------
 
-        >>> import hedgehog as hh
+        >>> import sorobn as hh
 
         >>> bn = hh.examples.asia()
 

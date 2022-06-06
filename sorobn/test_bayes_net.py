@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import hedgehog as hh
+import sorobn as hh
 
 
 def check_partial_fit(bn):
@@ -93,7 +93,7 @@ def naive():
     )
     for example in (
         *dict(inspect.getmembers(
-            importlib.import_module('hedgehog.examples'),
+            importlib.import_module('sorobn.examples'),
             inspect.isfunction)
         ).values(),
         naive
@@ -158,7 +158,7 @@ def test_indep_vars():
 def test_cpt_with_index_names():
     """
 
-    From https://github.com/MaxHalford/hedgehog/issues/19
+    From https://github.com/MaxHalford/sorobn/issues/19
 
     """
 

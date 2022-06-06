@@ -1,12 +1,12 @@
 import inspect
 
-import hedgehog as hh
+import sorobn as hh
 import streamlit as st
 
 """
-# 🦔 hedgehog
+# 🦔 sorobn
 
-This is a little demo app for the [hedgehog library](https://github.com/MaxHalford/hedgehog).
+This is a little demo app for the [sorobn library](https://github.com/MaxHalford/sorobn).
 """
 
 examples = dict(inspect.getmembers(hh.examples, inspect.isfunction))

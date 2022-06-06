@@ -28,23 +28,22 @@ The main goal of this project is to be used for educational purposes. As such, m
 
 ## Installation
 
-You should be able to install and use this library with any Python version above 3.5.
+You should be able to install and use this library with any Python version above 3.9:
 
 ```sh
-$ pip install git+https://github.com/MaxHalford/vose
-$ pip install git+https://github.com/MaxHalford/hedgehog
+pip install git+https://github.com/MaxHalford/sorobn
 ```
 
-Note that under the hood `hedgehog` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
+Note that under the hood `sorobn` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
 
 ## Usage
 
 ### ✍️ Manual structures
 
-The central construct in `hedgehog` is the `BayesNet` class. A Bayesian network's structure can be manually defined by instantiating a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
+The central construct in `sorobn` is the `BayesNet` class. A Bayesian network's structure can be manually defined by instantiating a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
 
 ```python
->>> import hedgehog as hh
+>>> import sorobn as hh
 
 >>> bn = hh.BayesNet(
 ...     ('Burglary', 'Alarm'),
@@ -58,7 +57,7 @@ The central construct in `hedgehog` is the `BayesNet` class. A Bayesian network'
 You may also use the following notation, which is slightly more terse:
 
 ```python
->>> import hedgehog as hh
+>>> import sorobn as hh
 
 >>> bn = hh.BayesNet(
 ...     (['Burglary', 'Earthquake'], 'Alarm'),
@@ -393,16 +392,16 @@ A side-goal of this project is to provide a user interface to play around with a
 You can install the GUI dependencies by running the following command:
 
 ```sh
-$ pip install git+https://github.com/MaxHalford/hedgehog --install-option="--extras-require=gui"
+$ pip install git+https://github.com/MaxHalford/sorobn --install-option="--extras-require=gui"
 ```
 
-You can then launch a demo by running the `hedgehog` command:
+You can then launch a demo by running the `sorobn` command:
 
 ```sh
-$ hedgehog
+$ sorobn
 ```
 
-This will launch a `streamlit` interface where you can play around with the examples that `hedgehog` provides. You can see a running instance of it in [this Heroku app](https://hedgehog-demo.herokuapp.com/).
+This will launch a `streamlit` interface where you can play around with the examples that `sorobn` provides. You can see a running instance of it in [this Heroku app](https://sorobn-demo.herokuapp.com/).
 
 An obvious next step would be to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
 
@@ -447,22 +446,19 @@ Here is some example usage:
 
 ```sh
 # Download and navigate to the source code
-$ git clone https://github.com/MaxHalford/hedgehog
-$ cd hedgehog
+git clone https://github.com/MaxHalford/sorobn
+cd sorobn
 
-# Create a virtual environment
-$ conda create -n hedgehog -y python=3.9
-$ conda activate hedgehog
+# Install poetry
+curl -sSL https://install.python-poetry.org | POETRY_PREVIEW=1 python3 -
 
 # Install in development mode
-$ pip install -e ".[dev]"
-$ pip install git+https://github.com/MaxHalford/vose
-$ python setup.py develop
+poetry install --dev
 
 # Run tests
-$ pytest
+pytest
 ```
 
 ## License
 
-This project is free and open-source software licensed under the [MIT license](https://github.com/MaxHalford/hedgehog/blob/master/LICENSE).
+This project is free and open-source software licensed under the [MIT license](https://github.com/MaxHalford/sorobn/blob/master/LICENSE).

@@ -20,7 +20,7 @@ def alarm() -> BayesNet:
     Examples
     --------
 
-    >>> import hedgehog as hh
+    >>> import sorobn as hh
 
     >>> bn = hh.examples.alarm()
 
@@ -92,7 +92,7 @@ def asia() -> BayesNet:
     Examples
     --------
 
-    >>> import hedgehog as hh
+    >>> import sorobn as hh
 
     >>> bn = hh.examples.asia()
 
@@ -196,7 +196,7 @@ def sprinkler() -> BayesNet:
     Examples
     --------
 
-    >>> import hedgehog as hh
+    >>> import sorobn as hh
 
     >>> bn = hh.examples.sprinkler()
 
@@ -263,7 +263,7 @@ def grades():
     Examples
     --------
 
-    >>> import hedgehog as hh
+    >>> import sorobn as hh
 
     >>> bn = hh.examples.grades()
 
