@@ -15,14 +15,15 @@ graphviz = "*"
 pytest = "*"
 scikit-learn = "*"
 
-[tool.poetry.group.examples.dependencies]
-daft = "*"
-matplotlib = "*"
-scikit-learn = "*"
+# TODO: turn back on when poetry sorts it out
+# [tool.poetry.group.examples.dependencies]
+# daft = "*"
+# matplotlib = "*"
+# scikit-learn = "*"
 
-[tool.poetry.group.gui.dependencies]
-graphviz = "*"
-streamlit = "*"
+# [tool.poetry.group.gui.dependencies]
+# graphviz = "*"
+# streamlit = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
