@@ -8,7 +8,7 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.9"
 pandas = "*"
-vose = { git = "https://github.com/MaxHalford/bose.git" }
+vose = { git = "https://github.com/MaxHalford/vose.git" }
 
 [tool.poetry.dev-dependencies]
 graphviz = "*"
