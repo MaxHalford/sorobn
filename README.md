@@ -50,7 +50,8 @@ The central construct in `sorobn` is the `BayesNet` class. A Bayesian network's 
 ...     ('Burglary', 'Alarm'),
 ...     ('Earthquake', 'Alarm'),
 ...     ('Alarm', 'John calls'),
-...     ('Alarm', 'Mary calls')
+...     ('Alarm', 'Mary calls'),
+...     seed=42
 ... )
 
 ```
@@ -62,7 +63,8 @@ You may also use the following notation, which is slightly more terse:
 
 >>> bn = hh.BayesNet(
 ...     (['Burglary', 'Earthquake'], 'Alarm'),
-...     ('Alarm', ['John calls', 'Mary calls'])
+...     ('Alarm', ['John calls', 'Mary calls']),
+...     seed=42
 ... )
 
 ```
@@ -165,9 +167,6 @@ Name: P(John calls, Mary calls), dtype: float64
 By default, the answer is found via an exact inference procedure. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an estimate of the answer. The quality of the estimate increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
 
 ```python
->>> import numpy as np
->>> np.random.seed(42)
-
 >>> bn.query(
 ...     'Burglary',
 ...     event={'Mary calls': True, 'John calls': True},
@@ -175,8 +174,8 @@ By default, the answer is found via an exact inference procedure. For small netw
 ...     n_iterations=1000
 ... )
 Burglary
-False    0.73
-True     0.27
+False    0.679
+True     0.321
 Name: P(Burglary), dtype: float64
 
 ```
@@ -288,11 +287,11 @@ You can use a Bayesian network to generate random samples. The samples will foll
 
 >>> bn.sample(5)
     Alarm  Burglary  Earthquake  John calls  Mary calls
-0   False     False       False       False       False
-1   False     False       False       False       False
-2   False     False       False       False       False
-3   False     False       False        True       False
-4   False     False       False       False       False
+0  False     False       False       False       False
+1  False     False       False       False       False
+2  False     False       False       False       False
+3  False     False       False       False       False
+4  False     False       False       False       False
 
 ```
 
@@ -304,7 +303,7 @@ You can also specify starting values for a subset of the variables.
  'Burglary': True,
  'Earthquake': False,
  'John calls': True,
- 'Mary calls': True}
+ 'Mary calls': False}
 
 ```
 

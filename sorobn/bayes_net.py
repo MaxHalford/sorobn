@@ -26,7 +26,7 @@ class CDTAccessor:
         self.series = series
         self.sampler = None
 
-    def sample(self):
+    def sample(self, rng=np.random):
         """Sample a row at random.
 
         The `sample` method of a Series is very slow. Additionally, it is not designed to be used
@@ -37,7 +37,7 @@ class CDTAccessor:
         if self.sampler is None:
             self.sampler = vose.Sampler(
                 weights=self.series.to_numpy(dtype=float),
-                seed=np.random.randint(2**16),
+                seed=rng.integers(0, 2**16, 1)[0],
             )
         idx = self.sampler.sample()
         return self.series.index[idx]
@@ -273,6 +273,9 @@ class BayesNet:
         justification for doing so is related to Laplace's rule of succession and to Bayesian
         statistics in general.
 
+    seed
+        The seed for the random number generator used to generate artificial samples.
+
     Attributes
     ----------
     nodes (list)
@@ -281,9 +284,11 @@ class BayesNet:
 
     """
 
-    def __init__(self, *structure, prior_count: int = None):
+    def __init__(self, *structure, prior_count: int = None, seed: int = None):
 
         self.prior_count = prior_count
+        self.seed = seed
+        self._rng = np.random.default_rng(seed=seed)
 
         def coerce_list(obj):
             if isinstance(obj, list):
@@ -517,7 +522,7 @@ class BayesNet:
                 if node in init:
                     node_value = init[node]
                 else:
-                    node_value = P.cdt.sample()
+                    node_value = P.cdt.sample(rng=self._rng)
 
                 sample[node] = node_value
                 likelihood *= P.get(node_value, 0)
@@ -566,15 +571,13 @@ class BayesNet:
         >>> import sorobn as hh
         >>> import numpy as np
 
-        >>> np.random.seed(42)
-
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)
         Rain
-        False    0.678571
-        True     0.321429
+        False    0.73913
+        True     0.26087
         Name: P(Rain), dtype: float64
 
         """
@@ -609,15 +612,13 @@ class BayesNet:
         >>> import sorobn as hh
         >>> import numpy as np
 
-        >>> np.random.seed(42)
-
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
         Rain
-        False    0.765995
-        True     0.234005
+        False    0.761616
+        True     0.238384
         Name: P(Rain), dtype: float64
 
         """
@@ -660,15 +661,13 @@ class BayesNet:
         >>> import sorobn as hh
         >>> import numpy as np
 
-        >>> np.random.seed(42)
-
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
         Rain
-        False    0.726
-        True     0.274
+        False    0.66
+        True     0.34
         Name: P(Rain), dtype: float64
 
         """
@@ -712,7 +711,7 @@ class BayesNet:
             condition = tuple(state[node] for node in boundaries[var])
             if condition:
                 P = P.cdt[condition]
-            state[var] = P.cdt.sample()
+            state[var] = P.cdt.sample(rng=self._rng)
 
             # Record the current state
             for var in query:
