@@ -13,10 +13,10 @@ The main goal of this project is to be used for educational purposes. As such, m
 - [Installation](#installation)
 - [Usage](#usage)
   - [✍️ Manual structures](#️-manual-structures)
+  - [🎲 Random sampling](#-random-sampling)
   - [🔮 Probabilistic inference](#-probabilistic-inference)
   - [❓ Missing value imputation](#-missing-value-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
-  - [🎲 Random sampling](#-random-sampling)
   - [🧮 Parameter estimation](#-parameter-estimation)
   - [🧱 Structure learning](#-structure-learning)
     - [🌳 Chow-Liu trees](#-chow-liu-trees)
@@ -131,6 +131,66 @@ Note that you are allowed to specify variables that have no dependencies with an
 
 ```
 
+### 🎲 Random sampling
+
+You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and its conditional probability tables.
+
+```python
+>>> pprint(bn.sample())
+{'Alarm': False,
+ 'Burglary': False,
+ 'Earthquake': False,
+ 'John calls': False,
+ 'Mary calls': False}
+
+>>> bn.sample(5)  # doctest: +SKIP
+    Alarm  Burglary  Earthquake  John calls  Mary calls
+0  False     False       False       False       False
+1  False     False       False       False       False
+2  False     False       False       False       False
+3  False     False       False       False       False
+4  False     False       False        True       False
+
+```
+
+You can also specify starting values for a subset of the variables.
+
+```python
+>>> pprint(bn.sample(init={'Alarm': True, 'Burglary': True}))
+{'Alarm': True,
+ 'Burglary': True,
+ 'Earthquake': False,
+ 'John calls': True,
+ 'Mary calls': False}
+
+```
+
+<!-- There are different sampling methods which you can choose from.
+
+```python
+> pprint(bn.sample(method='backward'))
+{'Alarm': False,
+ 'Burglary': False,
+ 'Earthquake': False,
+ 'John calls': False,
+ 'Mary calls': False}
+
+> pprint(bn.sample(init={'Earthquake': True}, method='backward'))
+{'Alarm': True,
+ 'Burglary': False,
+ 'Earthquake': True,
+ 'John calls': True,
+ 'Mary calls': False}
+
+``` -->
+
+The supported inference methods are:
+
+- `forward` for [forward sampling](https://ermongroup.github.io/cs228-notes/inference/sampling/#forward-sampling).
+<!--- `backward` for [backward sampling](https://arxiv.org/ftp/arxiv/papers/1302/1302.6807.pdf).-->
+
+Note that randomness is controlled via the `seed` parameter, when `BayesNet` is initialized.
+
 ### 🔮 Probabilistic inference
 
 A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generative_model). Therefore, it can be used for many purposes. For instance, it can answer probabilistic queries, such as:
@@ -186,6 +246,8 @@ The supported inference methods are:
 - `gibbs` for [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling).
 - `likelihood` for [likelihood weighting](https://artint.info/2e/html/ArtInt2e.Ch8.S6.SS4.html).
 - `rejection` for [rejection sampling](https://www.wikiwand.com/en/Rejection_sampling).
+
+As with random sampling, randomness is controlled during `BayesNet` initialization, via the `seed` parameter.
 
 ### ❓ Missing value imputation
 
@@ -272,64 +334,6 @@ True   True      True        True        True          0.000001
 Name: P(Alarm, Burglary, Earthquake, John calls, Mary calls), dtype: float64
 
 ```
-
-### 🎲 Random sampling
-
-You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and its conditional probability tables.
-
-```python
->>> pprint(bn.sample())
-{'Alarm': False,
- 'Burglary': False,
- 'Earthquake': False,
- 'John calls': False,
- 'Mary calls': False}
-
->>> bn.sample(5)  # doctest: +SKIP
-    Alarm  Burglary  Earthquake  John calls  Mary calls
-0  False     False       False       False       False
-1  False     False       False       False       False
-2  False     False       False       False       False
-3  False     False       False       False       False
-4  False     False       False        True       False
-
-```
-
-You can also specify starting values for a subset of the variables.
-
-```python
->>> pprint(bn.sample(init={'Alarm': True, 'Burglary': True}))
-{'Alarm': True,
- 'Burglary': True,
- 'Earthquake': False,
- 'John calls': True,
- 'Mary calls': False}
-
-```
-
-<!-- There are different sampling methods which you can choose from.
-
-```python
-> pprint(bn.sample(method='backward'))
-{'Alarm': False,
- 'Burglary': False,
- 'Earthquake': False,
- 'John calls': False,
- 'Mary calls': False}
-
-> pprint(bn.sample(init={'Earthquake': True}, method='backward'))
-{'Alarm': True,
- 'Burglary': False,
- 'Earthquake': True,
- 'John calls': True,
- 'Mary calls': False}
-
-``` -->
-
-The supported inference methods are:
-
-- `forward` for [forward sampling](https://ermongroup.github.io/cs228-notes/inference/sampling/#forward-sampling).
-<!--- `backward` for [backward sampling](https://arxiv.org/ftp/arxiv/papers/1302/1302.6807.pdf).-->
 
 ### 🧮 Parameter estimation
 
