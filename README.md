@@ -174,8 +174,8 @@ By default, the answer is found via an exact inference procedure. For small netw
 ...     n_iterations=1000
 ... )
 Burglary
-False    0.679
-True     0.321
+False    0.706
+True     0.294
 Name: P(Burglary), dtype: float64
 
 ```
@@ -291,7 +291,7 @@ You can use a Bayesian network to generate random samples. The samples will foll
 1  False     False       False       False       False
 2  False     False       False       False       False
 3  False     False       False       False       False
-4  False     False       False       False       False
+4  False     False       False        True       False
 
 ```
 

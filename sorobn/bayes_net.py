@@ -3,6 +3,7 @@ import functools
 import itertools
 import graphlib
 import queue
+import random
 import typing
 
 import numpy as np
@@ -26,7 +27,7 @@ class CDTAccessor:
         self.series = series
         self.sampler = None
 
-    def sample(self, rng=np.random):
+    def sample(self, rng=random):
         """Sample a row at random.
 
         The `sample` method of a Series is very slow. Additionally, it is not designed to be used
@@ -37,7 +38,7 @@ class CDTAccessor:
         if self.sampler is None:
             self.sampler = vose.Sampler(
                 weights=self.series.to_numpy(dtype=float),
-                seed=rng.integers(0, 2**16, 1)[0],
+                seed=rng.randint(1, 2**16),
             )
         idx = self.sampler.sample()
         return self.series.index[idx]
@@ -288,7 +289,7 @@ class BayesNet:
 
         self.prior_count = prior_count
         self.seed = seed
-        self._rng = np.random.default_rng(seed=seed)
+        self._rng = random.Random(seed)
 
         def coerce_list(obj):
             if isinstance(obj, list):
@@ -576,8 +577,8 @@ class BayesNet:
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)
         Rain
-        False    0.73913
-        True     0.26087
+        False    0.730769
+        True     0.269231
         Name: P(Rain), dtype: float64
 
         """
@@ -617,8 +618,8 @@ class BayesNet:
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
         Rain
-        False    0.761616
-        True     0.238384
+        False    0.762228
+        True     0.237772
         Name: P(Rain), dtype: float64
 
         """
@@ -666,8 +667,8 @@ class BayesNet:
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
         Rain
-        False    0.66
-        True     0.34
+        False    0.632
+        True     0.368
         Name: P(Rain), dtype: float64
 
         """
