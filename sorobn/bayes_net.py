@@ -37,7 +37,7 @@ class CDTAccessor:
         if self.sampler is None:
             self.sampler = vose.Sampler(
                 weights=self.series.to_numpy(dtype=float),
-                seed=np.random.randint(2 ** 16),
+                seed=np.random.randint(2**16),
             )
         idx = self.sampler.sample()
         return self.series.index[idx]
@@ -687,7 +687,9 @@ class BayesNet:
             )
 
             if boundary := self.markov_boundary(node):
-                post = post.groupby(boundary).apply(lambda g: g / g.sum())
+                post = post.groupby(boundary, group_keys=False).apply(
+                    lambda g: g / g.sum()
+                )
                 post = post.reorder_levels([*boundary, node])
 
             post = post.sort_index()

@@ -17,6 +17,7 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [❓ Missing value imputation](#-missing-value-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
   - [🎲 Random sampling](#-random-sampling)
+  - [🧮 Parameter estimation](#-parameter-estimation)
   - [🧱 Structure learning](#-structure-learning)
     - [🌳 Chow-Liu trees](#-chow-liu-trees)
   - [👀 Visualization](#-visualization)
@@ -453,9 +454,10 @@ cd sorobn
 curl -sSL https://install.python-poetry.org | POETRY_PREVIEW=1 python3 -
 
 # Install in development mode
-poetry install --dev
+poetry install
 
 # Run tests
+poetry shell
 pytest
 ```
 
