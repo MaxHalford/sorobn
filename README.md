@@ -401,7 +401,7 @@ You can then launch a demo by running the `sorobn` command:
 $ sorobn
 ```
 
-This will launch a `streamlit` interface where you can play around with the examples that `sorobn` provides. You can see a running instance of it in [this Heroku app](https://sorobn-demo.herokuapp.com/).
+This will launch a `streamlit` interface where you can play around with the examples that `sorobn` provides. You can see a running instance of it in [this Streamlit app](https://sorobn.streamlit.app/).
 
 An obvious next step would be to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
 
