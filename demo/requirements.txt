@@ -1,3 +1,0 @@
-graphviz
-soroban @ git+https://github.com/MaxHalford/soroban
-streamlit
