@@ -51,7 +51,7 @@ The central construct in `sorobn` is the `BayesNet` class. A Bayesian network's 
 ...     ('Earthquake', 'Alarm'),
 ...     ('Alarm', 'John calls'),
 ...     ('Alarm', 'Mary calls'),
-...     seed=42
+...     seed=42,
 ... )
 
 ```
