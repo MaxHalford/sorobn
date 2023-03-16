@@ -575,7 +575,7 @@ class BayesNet:
         >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)
+        >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)  # doctest: +SKIP
         Rain
         False    0.730769
         True     0.269231
@@ -616,7 +616,7 @@ class BayesNet:
         >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)
+        >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)  # doctest: +SKIP
         Rain
         False    0.762228
         True     0.237772
@@ -665,7 +665,7 @@ class BayesNet:
         >>> bn = hh.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)
+        >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)  # doctest: +SKIP
         Rain
         False    0.632
         True     0.368

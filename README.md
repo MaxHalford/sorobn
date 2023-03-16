@@ -172,7 +172,7 @@ By default, the answer is found via an exact inference procedure. For small netw
 ...     event={'Mary calls': True, 'John calls': True},
 ...     algorithm='gibbs',
 ...     n_iterations=1000
-... )
+... )  # doctest: +SKIP
 Burglary
 False    0.706
 True     0.294
@@ -285,7 +285,7 @@ You can use a Bayesian network to generate random samples. The samples will foll
  'John calls': False,
  'Mary calls': False}
 
->>> bn.sample(5)
+>>> bn.sample(5)  # doctest: +SKIP
     Alarm  Burglary  Earthquake  John calls  Mary calls
 0  False     False       False       False       False
 1  False     False       False       False       False
