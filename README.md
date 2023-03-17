@@ -1,5 +1,8 @@
 <div align="center">
-    <h1>Bayesian networks in Python</h1>
+    <h1>sorobn — Bayesian networks in Python</h1>
+    <div>
+        <a href="https://github.com/MaxHalford/sorobn/actions/workflows/unit-tests.yml"><img href="https://github.com/MaxHalford/sorobn/actions/workflows/unit-tests.yml/badge.svg" /></a>
+    </div>
 </div>
 </br>
 
