@@ -1,8 +1,11 @@
 <div align="center">
     <h1>sorobn — Bayesian networks in Python</h1>
+    </br>
     <div>
         <a href="https://github.com/MaxHalford/sorobn/actions/workflows/unit-tests.yml"><img href="https://github.com/MaxHalford/sorobn/actions/workflows/unit-tests.yml/badge.svg" /></a>
     </div>
+    </br>
+    <img href="https://user-images.githubusercontent.com/8095957/225851341-31acd01b-54ad-429d-9d14-ee367edfb76d.png" alt="DALL·E 2023-03-17 09 21 56 - An oil painting by Matisse of a Bayesian network  Each node in the network is an abacus with red balls and a wooden frame" />
 </div>
 </br>
 
