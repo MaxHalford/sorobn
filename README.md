@@ -136,6 +136,8 @@ Note that you are allowed to specify variables that have no dependencies with an
 You can use a Bayesian network to generate random samples. The samples will follow the distribution induced by the network's structure and its conditional probability tables.
 
 ```python
+>>> from pprint import pprint
+
 >>> pprint(bn.sample())
 {'Alarm': False,
  'Burglary': False,
@@ -254,8 +256,6 @@ As with random sampling, randomness is controlled during `BayesNet` initializati
 A use case for probabilistic inference is to impute missing values. The `impute` method fills the missing values with the most likely replacements, given the present information. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
 
 ```python
->>> from pprint import pprint
-
 >>> sample = {
 ...     'Alarm': True,
 ...     'Burglary': True,
