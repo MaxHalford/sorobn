@@ -7,7 +7,7 @@
 </br>
 
 <div align="center" >
-  <img src="https://user-images.githubusercontent.com/8095957/225851341-31acd01b-54ad-429d-9d14-ee367edfb76d.png" width="40%" alt="DALL·E 2023-03-17 09 21 56 - An oil painting by Matisse of a Bayesian network  Each node in the network is an abacus with red balls and a wooden frame" align="right" />
+  <img src="https://user-images.githubusercontent.com/8095957/225851341-31acd01b-54ad-429d-9d14-ee367edfb76d.png" width="33%" alt="DALL·E 2023-03-17 09 21 56 - An oil painting by Matisse of a Bayesian network  Each node in the network is an abacus with red balls and a wooden frame" align="right" />
 </div>
 
 This is an unambitious Python library for working with [Bayesian networks](https://www.wikiwand.com/en/Bayesian_network). For serious usage, you should probably be using a more established project, such as [pomegranate](https://pomegranate.readthedocs.io/en/latest/), [pgmpy](http://pgmpy.org/), [bnlearn](https://erdogant.github.io/bnlearn/pages/html/index.html) (which is built on the latter), or even [PyMC](https://docs.pymc.io/). There's also the well-documented [bnlearn](https://www.bnlearn.com/) package in R. Hey, you could even go medieval and use something like [Netica](https://www.norsys.com/) — I'm just jesting, they actually have a [nice tutorial on Bayesian networks](https://www.norsys.com/tutorials/netica/secA/tut_A1.htm). By the way, if you're not familiar with Bayesian networks, then I highly recommend Patrick Winston's MIT courses on probabilistic inference ([part 1](https://www.youtube.com/watch?v=A6Ud6oUCRak), [part 2](https://www.youtube.com/watch?v=EC6bf8JCpDQ)).
