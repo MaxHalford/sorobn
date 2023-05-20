@@ -37,10 +37,10 @@ The main goal of this project is to be used for educational purposes. As such, m
 You should be able to install and use this library with any Python version above 3.9:
 
 ```sh
-pip install git+https://github.com/MaxHalford/sorobn
+pip install sorobn
 ```
 
-Note that under the hood `sorobn` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
+Note that under the hood, `sorobn` uses [`vose`](https://github.com/MaxHalford/vose) for random sampling, which is written in Cython.
 
 ## Usage
 
