@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sorobn"
-version = "0.2.0"
+version = "0.3.0"
 description = "Bayesian networks in Python"
 authors = ["Max Halford <maxhalford25@gmail.com>"]
 license = "MIT"
@@ -12,18 +12,10 @@ numpy = "^1.24.2"
 pandas = "^1.5.3"
 
 [tool.poetry.dev-dependencies]
-graphviz = "*"
-pytest = "*"
-scikit-learn = "*"
-
-[tool.poetry.group.examples.dependencies]
-daft = "*"
-matplotlib = "*"
-scikit-learn = "*"
-
-[tool.poetry.group.gui.dependencies]
-graphviz = "*"
-streamlit = "*"
+daft = "^0.1.2"
+graphviz = "^0.20.1"
+matplotlib = "^3.6.2"
+scikit-learn = "^1.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
