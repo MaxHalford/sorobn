@@ -131,3 +131,5 @@ dmypy.json
 # Testing
 .ipynb_checkpoints/
 workbench.ipynb
+
+/*.ipynb
