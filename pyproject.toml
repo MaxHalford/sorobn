@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "sorobn"
-version = "0.3.0"
+version = "0.3.1"
 description = "Bayesian networks in Python"
 authors = ["Max Halford <maxhalford25@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.9"
-vose = "^0.0.1"
+vose = "^0.1.0"
 numpy = "^1.24.2"
 pandas = "^1.5.3"
 
