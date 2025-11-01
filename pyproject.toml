@@ -1,6 +1,6 @@
 [project]
 name = "sorobn"
-version = "0.4.0"
+version = "0.4.1"
 description = "Bayesian networks in Python"
 readme = "README.md"
 authors = [
