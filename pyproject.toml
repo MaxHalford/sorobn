@@ -1,27 +1,33 @@
-[tool.poetry]
+[project]
 name = "sorobn"
-version = "0.3.1"
+version = "0.4.0"
 description = "Bayesian networks in Python"
-authors = ["Max Halford <maxhalford25@gmail.com>"]
+readme = "README.md"
+authors = [
+  { name = "Max Halford", email = "maxhalford25@gmail.com" },
+]
 license = "MIT"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2.3.3",
+    "vose>=0.2.3",
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-vose = "^0.1.0"
-numpy = "^1.24.2"
-pandas = "^1.5.3"
-
-[tool.poetry.group.dev.dependencies]
-matplotlib = "^3.7.1"
-daft = "^0.1.2"
-scikit-learn = "^1.2.2"
-graphviz = "^0.20.1"
-pytest = "^7.3.1"
-ipykernel = "^6.26.0"
+[dependency-groups]
+dev = [
+    "graphviz>=0.21",
+    "matplotlib>=3.10.7",
+    "pytest>=8.4.2",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.9.5,<0.10.0"]
+build-backend = "uv_build"
 
-[tool.poetry.scripts]
+[tool.uv.build-backend]
+module-name = "sorobn"
+module-root = ""
+
+[project.scripts]
 sorobn = 'sorobn:cli_hook'
+
