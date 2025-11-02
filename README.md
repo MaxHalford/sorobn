@@ -144,11 +144,12 @@ You can use a Bayesian network to generate random samples. The samples will foll
 >>> from pprint import pprint
 
 >>> pprint(bn.sample())
-{'Alarm': False,
- 'Burglary': False,
- 'Earthquake': False,
- 'John calls': False,
- 'Mary calls': False}
+Burglary      False
+Earthquake    False
+Alarm         False
+John calls    False
+Mary calls    False
+dtype: bool
 
 >>> bn.sample(5)  # doctest: +SKIP
     Alarm  Burglary  Earthquake  John calls  Mary calls
@@ -164,11 +165,12 @@ You can also specify starting values for a subset of the variables.
 
 ```python
 >>> pprint(bn.sample(init={'Alarm': True, 'Burglary': True}))
-{'Alarm': True,
- 'Burglary': True,
- 'Earthquake': False,
- 'John calls': True,
- 'Mary calls': False}
+Burglary       True
+Earthquake    False
+Alarm          True
+John calls     True
+Mary calls     True
+dtype: bool
 
 ```
 
@@ -271,11 +273,12 @@ A use case for probabilistic inference is to impute missing values. The `impute`
 
 >>> sample = bn.impute(sample)
 >>> pprint(sample)
-{'Alarm': True,
- 'Burglary': True,
- 'Earthquake': False,
- 'John calls': True,
- 'Mary calls': True}
+Alarm          True
+Burglary       True
+Earthquake    False
+John calls     True
+Mary calls     True
+dtype: bool
 
 ```
 
@@ -295,7 +298,7 @@ You can estimate the likelihood of an event with the `predict_proba` method:
 ... }
 
 >>> bn.predict_proba(event)
-0.936742...
+np.float64(0.936742...)
 
 ```
 
@@ -304,7 +307,7 @@ In other words, `predict_proba` computes `P(event)`, whereas the `query` method 
 ```py
 >>> event = {'Alarm': True, 'Burglary': False}
 >>> bn.predict_proba(event)
-0.001576...
+np.float64(0.001576...)
 
 ```
 
@@ -313,7 +316,7 @@ This also works for an event with a single variable:
 ```py
 >>> event = {'Alarm': False}
 >>> bn.predict_proba(event)
-0.997483...
+np.float64(0.997483...)
 
 ```
 
