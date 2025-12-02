@@ -49,9 +49,9 @@ Note that under the hood, `sorobn` uses [`vose`](https://github.com/MaxHalford/v
 The central construct in `sorobn` is the `BayesNet` class. A Bayesian network's structure can be manually defined by instantiating a `BayesNet`. As an example, let's use [Judea Pearl's famous alarm network](https://books.google.fr/books?id=vFk7DwAAQBAJ&pg=PT40&lpg=PT40&dq=judea+pearl+alarm+network&source=bl&ots=Sa24Dczalo&sig=ACfU3U1yGe85VxGkygAx5G-X6UwYodHpTg&hl=en&sa=X&ved=2ahUKEwjVxJOQvbDpAhUSx4UKHTHPBkwQ6AEwAHoECAoQAQ#v=onepage&q=judea%20pearl%20alarm%20network&f=false):
 
 ```python
->>> import sorobn as hh
+>>> import sorobn
 
->>> bn = hh.BayesNet(
+>>> bn = sorobn.BayesNet(
 ...     ('Burglary', 'Alarm'),
 ...     ('Earthquake', 'Alarm'),
 ...     ('Alarm', 'John calls'),
@@ -64,9 +64,9 @@ The central construct in `sorobn` is the `BayesNet` class. A Bayesian network's 
 You may also use the following notation, which is slightly more terse:
 
 ```python
->>> import sorobn as hh
+>>> import sorobn
 
->>> bn = hh.BayesNet(
+>>> bn = sorobn.BayesNet(
 ...     (['Burglary', 'Earthquake'], 'Alarm'),
 ...     ('Alarm', ['John calls', 'Mary calls']),
 ...     seed=42
@@ -100,6 +100,8 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 ...     (False, False, False): .999
 ... })
 
+☝️ The order of the keys in the above series is `(Burglary, Earthquake, Alarm)`.
+
 # P(John calls | Alarm)
 >>> bn.P['John calls'] = pd.Series({
 ...     (True, True): .9,
@@ -128,7 +130,7 @@ The `prepare` method has to be called whenever the structure and/or the P are ma
 Note that you are allowed to specify variables that have no dependencies with any other variable:
 
 ```python
->>> _ = hh.BayesNet(
+>>> _ = sorobn.BayesNet(
 ...     ('Cloud', 'Rain'),
 ...     (['Rain', 'Cold'], 'Snow'),
 ...     'Wind speed'  # has no dependencies
@@ -144,11 +146,12 @@ You can use a Bayesian network to generate random samples. The samples will foll
 >>> from pprint import pprint
 
 >>> pprint(bn.sample())
-{'Alarm': False,
- 'Burglary': False,
- 'Earthquake': False,
- 'John calls': False,
- 'Mary calls': False}
+Burglary      False
+Earthquake    False
+Alarm         False
+John calls    False
+Mary calls    False
+dtype: bool
 
 >>> bn.sample(5)  # doctest: +SKIP
     Alarm  Burglary  Earthquake  John calls  Mary calls
@@ -164,11 +167,12 @@ You can also specify starting values for a subset of the variables.
 
 ```python
 >>> pprint(bn.sample(init={'Alarm': True, 'Burglary': True}))
-{'Alarm': True,
- 'Burglary': True,
- 'Earthquake': False,
- 'John calls': True,
- 'Mary calls': False}
+Burglary       True
+Earthquake    False
+Alarm          True
+John calls     True
+Mary calls     True
+dtype: bool
 
 ```
 
@@ -271,11 +275,12 @@ A use case for probabilistic inference is to impute missing values. The `impute`
 
 >>> sample = bn.impute(sample)
 >>> pprint(sample)
-{'Alarm': True,
- 'Burglary': True,
- 'Earthquake': False,
- 'John calls': True,
- 'Mary calls': True}
+Alarm          True
+Burglary       True
+Earthquake    False
+John calls     True
+Mary calls     True
+dtype: bool
 
 ```
 
@@ -295,7 +300,7 @@ You can estimate the likelihood of an event with the `predict_proba` method:
 ... }
 
 >>> bn.predict_proba(event)
-0.936742...
+np.float64(0.936742...)
 
 ```
 
@@ -304,7 +309,7 @@ In other words, `predict_proba` computes `P(event)`, whereas the `query` method 
 ```py
 >>> event = {'Alarm': True, 'Burglary': False}
 >>> bn.predict_proba(event)
-0.001576...
+np.float64(0.001576...)
 
 ```
 
@@ -313,7 +318,7 @@ This also works for an event with a single variable:
 ```py
 >>> event = {'Alarm': False}
 >>> bn.predict_proba(event)
-0.997483...
+np.float64(0.997483...)
 
 ```
 
@@ -369,9 +374,9 @@ The same result will be obtained whether you use `fit` once or `partial_fit` mul
 A Chow-Liu tree is a tree structure that represents a factorised distribution with maximal likelihood. It's essentially the best tree structure that can be found.
 
 ```python
->>> samples = hh.examples.asia().sample(300)
->>> structure = hh.structure.chow_liu(samples)
->>> bn = hh.BayesNet(*structure)
+>>> samples = sorobn.examples.asia().sample(300)
+>>> structure = sorobn.structure.chow_liu(samples)
+>>> bn = sorobn.BayesNet(*structure)
 
 ```
 
@@ -380,7 +385,7 @@ A Chow-Liu tree is a tree structure that represents a factorised distribution wi
 You can use the `graphviz` method to obtain a [`graphviz.Digraph`](https://graphviz.readthedocs.io/en/stable/api.html#graphviz.Digraph) representation.
 
 ```python
->>> bn = hh.examples.asia()
+>>> bn = sorobn.examples.asia()
 >>> dot = bn.graphviz()
 >>> path = dot.render('asia', directory='figures', format='svg', cleanup=True)
 
@@ -434,7 +439,7 @@ Several toy networks are available to fool around with in the `examples` submodu
 Here is some example usage:
 
 ```python
->>> bn = hh.examples.sprinkler()
+>>> bn = sorobn.examples.sprinkler()
 
 >>> bn.nodes
 ['Cloudy', 'Rain', 'Sprinkler', 'Wet grass']
@@ -458,15 +463,14 @@ Here is some example usage:
 git clone https://github.com/MaxHalford/sorobn
 cd sorobn
 
-# Install poetry
-curl -sSL https://install.python-poetry.org | python3 -
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install in development mode
-poetry install
+uv sync
 
 # Run tests
-poetry shell
-pytest
+uv run pytest
 ```
 
 ## License

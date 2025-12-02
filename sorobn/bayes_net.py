@@ -1,15 +1,13 @@
 import collections
 import functools
-import itertools
 import graphlib
-import queue
+import itertools
 import random
 import typing
 
 import numpy as np
 import pandas as pd
 import vose
-
 
 __all__ = ["BayesNet"]
 
@@ -79,15 +77,15 @@ class CDTAccessor:
 
         >>> ab = pointwise_mul_two(a, b)
         >>> ab
-        B  A  C
-        F  T  T    0.42
-              F    0.28
-           F  T    0.06
-              F    0.04
+        A  B  C
         T  T  T    0.06
               F    0.24
-           F  T    0.18
+           F  T    0.42
+              F    0.28
+        F  T  T    0.18
               F    0.72
+           F  T    0.06
+              F    0.04
         dtype: float64
 
         >>> ab.cdt.sum_out('B')
@@ -130,15 +128,15 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
     >>> b.index.names = ['B', 'C']
 
     >>> pointwise_mul_two(a, b)
-    B  A  C
-    F  T  T    0.42
-          F    0.28
-       F  T    0.06
-          F    0.04
+    A  B  C
     T  T  T    0.06
           F    0.24
-       F  T    0.18
+       F  T    0.42
+          F    0.28
+    F  T  T    0.18
           F    0.72
+       F  T    0.06
+          F    0.04
     dtype: float64
 
     This method returns the Cartesion product in case two don't share any part of their index
@@ -162,22 +160,22 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
 
     >>> pointwise_mul_two(a, b)
     A  B  C  D
-    T  T  F  F    0.12
-             T    0.18
-          T  F    0.24
-             T    0.06
-       F  F  F    0.28
-             T    0.42
-          T  F    0.56
-             T    0.14
-    F  T  F  F    0.36
-             T    0.54
-          T  F    0.72
-             T    0.18
-       F  F  F    0.04
-             T    0.06
-          T  F    0.08
-             T    0.02
+    T  T  T  T    0.06
+             F    0.24
+          F  T    0.18
+             F    0.12
+       F  T  T    0.14
+             F    0.56
+          F  T    0.42
+             F    0.28
+    F  T  T  T    0.18
+             F    0.72
+          F  T    0.54
+             F    0.36
+       F  T  T    0.02
+             F    0.08
+          F  T    0.06
+             F    0.04
     dtype: float64
 
     Here is an example where both series have a one-dimensional index:
@@ -220,14 +218,14 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
 
     >>> pointwise_mul_two(a, b)
     A  B  C
-    T  F  F    0.12
-          T    0.18
-       T  F    0.24
-          T    0.06
-    F  F  F    0.28
-          T    0.42
-       T  F    0.56
-          T    0.14
+    T  T  T    0.06
+          F    0.24
+       F  T    0.18
+          F    0.12
+    F  T  T    0.14
+          F    0.56
+       F  T    0.42
+          F    0.28
     dtype: float64
 
     """
@@ -237,7 +235,7 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
         cart = pd.DataFrame(
             np.outer(left, right), index=left.index, columns=right.index
         )
-        return cart.stack(list(range(cart.columns.nlevels)))
+        return cart.stack(list(range(cart.columns.nlevels)), future_stack=True)
 
     (
         index,
@@ -286,7 +284,6 @@ class BayesNet:
     """
 
     def __init__(self, *structure, prior_count: int = None, seed: int = None):
-
         self.prior_count = prior_count
         self.seed = seed
         self._rng = random.Random(seed)
@@ -344,7 +341,7 @@ class BayesNet:
                 P.index.names = [*self.parents[node], node]
             P.sort_index(inplace=True)
             P.name = (
-                f'P({node} | {", ".join(map(str, self.parents[node]))})'
+                f"P({node} | {', '.join(map(str, self.parents[node]))})"
                 if node in self.parents
                 else f"P({node})"
             )
@@ -390,9 +387,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = sorobn.examples.sprinkler()
 
         >>> bn.full_joint_dist()
         Cloudy  Rain   Sprinkler  Wet grass
@@ -440,7 +437,7 @@ class BayesNet:
         fjd = pointwise_mul(self.P.values(), keep_zeros=keep_zeros)
         fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
-        fjd.name = f'P({", ".join(fjd.index.names)})'
+        fjd.name = f"P({', '.join(fjd.index.names)})"
         return fjd / fjd.sum()
 
     def partial_fit(self, X: pd.DataFrame):
@@ -448,7 +445,6 @@ class BayesNet:
 
         # Compute the conditional distribution for each node that has parents
         for child, parents in self.parents.items():
-
             # If a P already exists, then we update it incrementally...
             if child in self.P:
                 old_counts = self.P[child] * self._P_sizes[child]
@@ -473,7 +469,6 @@ class BayesNet:
 
         # Compute the distribution for each root
         for root in self.roots:
-
             # Incremental update
             if root in self.P:
                 old_counts = self.P[root] * self._P_sizes[root]
@@ -508,12 +503,10 @@ class BayesNet:
         init = init or {}
 
         while True:
-
             sample = {}
             likelihood = 1.0
 
             for node in self.nodes:
-
                 # Access P(node | parents(node))
                 P = self.P[node]
                 if node in self.parents:
@@ -530,7 +523,7 @@ class BayesNet:
 
             yield sample, likelihood
 
-    def sample(self, n=1, init: dict = None, method="forward"):
+    def sample(self, n=1, init: dict | None = None, method="forward"):
         """Generate a new sample at random by using forward sampling.
 
         Parameters
@@ -555,7 +548,7 @@ class BayesNet:
             return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
                 axis="columns"
             )
-        return next(sampler)
+        return pd.Series(next(sampler))
 
     def _rejection_sampling(self, *query, event, n_iterations):
         """Answer a query using rejection sampling.
@@ -569,10 +562,10 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
         >>> import numpy as np
 
-        >>> bn = hh.examples.sprinkler(seed=42)
+        >>> bn = sorobn.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)  # doctest: +SKIP
@@ -610,10 +603,10 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
         >>> import numpy as np
 
-        >>> bn = hh.examples.sprinkler(seed=42)
+        >>> bn = sorobn.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)  # doctest: +SKIP
@@ -630,7 +623,6 @@ class BayesNet:
         sampler = self._forward_sample(init=event)
 
         for i in range(n_iterations):
-
             # Sample by using the events as fixed values
             sample, likelihood = next(sampler)
 
@@ -659,10 +651,10 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
         >>> import numpy as np
 
-        >>> bn = hh.examples.sprinkler(seed=42)
+        >>> bn = sorobn.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)  # doctest: +SKIP
@@ -681,7 +673,6 @@ class BayesNet:
         nonevents = sorted(set(self.nodes) - set(event))
 
         for node in nonevents:
-
             post = pointwise_mul(
                 self.P[node] for node in [node, *self.children.get(node, [])]
             )
@@ -703,7 +694,6 @@ class BayesNet:
         cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
 
         for i in range(n_iterations):
-
             # Go to the next variable
             var = next(cycle)
 
@@ -730,9 +720,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = sorobn.examples.sprinkler()
 
         >>> bn.query('Rain', event={'Sprinkler': True}, algorithm='exact')
         Rain
@@ -808,9 +798,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.asia()
+        >>> bn = sorobn.examples.asia()
 
         >>> event = {'Visit to Asia': True, 'Smoker': True}
         >>> bn.query('Lung cancer', 'Tuberculosis', event=event)
@@ -852,7 +842,7 @@ class BayesNet:
                 + "rejection"
             )
 
-        answer = answer.rename(f'P({", ".join(query)})')
+        answer = answer.rename(f"P({', '.join(query)})")
 
         # We sort the index levels if there are multiple query variables
         if isinstance(answer.index, pd.MultiIndex):
@@ -860,7 +850,7 @@ class BayesNet:
 
         return answer.sort_index()
 
-    def impute(self, sample: dict, **query_params) -> dict:
+    def impute(self, sample: dict, **query_params) -> pd.Series:
         """Replace missing values with the most probable possibility.
 
         This method returns a fresh copy and does not modify the input.
@@ -891,7 +881,7 @@ class BayesNet:
         for k, v in zip(posterior.index.names, posterior.idxmax()):
             event[k] = v
 
-        return event
+        return pd.Series(event)
 
     def graphviz(self):
         """Export to Graphviz.
@@ -968,15 +958,15 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> hh.BayesNet(
+        >>> sorobn.BayesNet(
         ...     ('a', 'b'),
         ...     ('a', 'c')
         ... ).is_tree
         True
 
-        >>> hh.BayesNet(
+        >>> sorobn.BayesNet(
         ...     ('a', 'c'),
         ...     ('b', 'c')
         ... ).is_tree
@@ -996,9 +986,9 @@ class BayesNet:
 
         The following article is taken from the Markov blanket Wikipedia article.
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.BayesNet(
+        >>> bn = sorobn.BayesNet(
         ...     (0, 3),
         ...     (1, 4),
         ...     (2, 5),
@@ -1030,9 +1020,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.asia()
+        >>> bn = sorobn.examples.asia()
 
         >>> for node in bn.iter_dfs():
         ...     print(node)
@@ -1048,7 +1038,6 @@ class BayesNet:
         """
 
         def bfs(node, visited):
-
             yield node
             visited.add(node)
 

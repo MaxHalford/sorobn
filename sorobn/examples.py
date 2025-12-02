@@ -2,7 +2,6 @@ import pandas as pd
 
 from .bayes_net import BayesNet
 
-
 __all__ = ["alarm", "asia", "grades", "sprinkler"]
 
 
@@ -15,9 +14,9 @@ def alarm(**kwargs) -> BayesNet:
     Examples
     --------
 
-    >>> import sorobn as hh
+    >>> import sorobn
 
-    >>> bn = hh.examples.alarm()
+    >>> bn = sorobn.examples.alarm()
 
     >>> bn.query('John calls', 'Mary calls', event={'Burglary': True, 'Earthquake': False})
     John calls  Mary calls
@@ -81,9 +80,9 @@ def asia(**kwargs) -> BayesNet:
     Examples
     --------
 
-    >>> import sorobn as hh
+    >>> import sorobn
 
-    >>> bn = hh.examples.asia()
+    >>> bn = sorobn.examples.asia()
 
     >>> bn.query('Lung cancer', event={'Visit to Asia': True, 'Smoker': False})
     Lung cancer
@@ -170,9 +169,9 @@ def sprinkler(**kwargs) -> BayesNet:
     Examples
     --------
 
-    >>> import sorobn as hh
+    >>> import sorobn
 
-    >>> bn = hh.examples.sprinkler()
+    >>> bn = sorobn.examples.sprinkler()
 
     >>> bn.query('Rain', event={'Sprinkler': True})
     Rain
@@ -227,9 +226,9 @@ def grades(**kwargs):
     Examples
     --------
 
-    >>> import sorobn as hh
+    >>> import sorobn
 
-    >>> bn = hh.examples.grades()
+    >>> bn = sorobn.examples.grades()
 
     >>> bn.nodes
     ['Difficulty', 'Intelligence', 'Grade', 'SAT', 'Letter']

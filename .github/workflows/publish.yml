@@ -30,6 +30,9 @@ jobs:
       - name: Build
         run: uv build
 
+      - name: Setup Graphviz
+        uses: ts-graphviz/setup-graphviz@v2
+
       - name: Smoke test
         run: uv run pytest
 
