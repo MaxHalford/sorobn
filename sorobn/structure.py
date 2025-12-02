@@ -3,8 +3,7 @@ import itertools
 
 import numpy as np
 
-
-__all__ = ['chow_liu']
+__all__ = ["chow_liu"]
 
 
 def chow_liu(X, root=None):
@@ -31,14 +30,15 @@ def chow_liu(X, root=None):
 
     # Compute the mutual information between each pair of variables
     marginals = {v: X[v].value_counts(normalize=True) for v in X.columns}
-    edge = collections.namedtuple('edge', ['u', 'v', 'mi'])
+    edge = collections.namedtuple("edge", ["u", "v", "mi"])
     mis = (
         edge(
-            u, v, mutual_info(
-            puv=X.groupby([u, v]).size() / len(X),
-            pu=marginals[u],
-            pv=marginals[v]
-        ))
+            u,
+            v,
+            mutual_info(
+                puv=X.groupby([u, v]).size() / len(X), pu=marginals[u], pv=marginals[v]
+            ),
+        )
         for u, v in itertools.combinations(sorted(X.columns), 2)
     )
     edges = ((e.u, e.v) for e in sorted(mis, key=lambda e: e.mi, reverse=True))
@@ -57,8 +57,8 @@ def mutual_info(puv, pu, pv):
 
     # We first align pu and pv with puv so that we can vectorise the MI computation
     # TODO: maybe there's a faster way to align pu and pv with respect to puv
-    pu = pu.reindex(puv.index.get_level_values(pu.name)).values
-    pv = pv.reindex(puv.index.get_level_values(pv.name)).values
+    pu = pu.reindex(puv.index.get_level_values(pu.index.name)).values
+    pv = pv.reindex(puv.index.get_level_values(pv.index.name)).values
 
     return (puv * np.log(puv / (pv * pu))).sum()
 
@@ -108,7 +108,6 @@ def kruskal(vertices, edges):
     neighbors = collections.defaultdict(set)
 
     for u, v in edges:
-
         if ds.find(u) != ds.find(v):
             neighbors[u].add(v)
             neighbors[v].add(u)
@@ -121,9 +120,7 @@ def kruskal(vertices, edges):
 
 
 def orient_tree(neighbors, root, visited):
-    """Return tree edges that originate from the given root.
-
-    """
+    """Return tree edges that originate from the given root."""
 
     for neighbor in neighbors[root] - visited:
         yield root, neighbor

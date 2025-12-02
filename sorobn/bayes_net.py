@@ -160,22 +160,22 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
 
     >>> pointwise_mul_two(a, b)
     A  B  C  D
-    T  T  F  T    0.18
-             F    0.12
-          T  T    0.06
+    T  T  T  T    0.06
              F    0.24
-       F  F  T    0.42
-             F    0.28
-          T  T    0.14
+          F  T    0.18
+             F    0.12
+       F  T  T    0.14
              F    0.56
-    F  T  F  T    0.54
-             F    0.36
-          T  T    0.18
+          F  T    0.42
+             F    0.28
+    F  T  T  T    0.18
              F    0.72
-       F  F  T    0.06
-             F    0.04
-          T  T    0.02
+          F  T    0.54
+             F    0.36
+       F  T  T    0.02
              F    0.08
+          F  T    0.06
+             F    0.04
     dtype: float64
 
     Here is an example where both series have a one-dimensional index:
@@ -218,14 +218,14 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
 
     >>> pointwise_mul_two(a, b)
     A  B  C
-    T  F  T    0.18
-          F    0.12
-       T  T    0.06
+    T  T  T    0.06
           F    0.24
-    F  F  T    0.42
-          F    0.28
-       T  T    0.14
+       F  T    0.18
+          F    0.12
+    F  T  T    0.14
           F    0.56
+       F  T    0.42
+          F    0.28
     dtype: float64
 
     """
@@ -235,7 +235,7 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
         cart = pd.DataFrame(
             np.outer(left, right), index=left.index, columns=right.index
         )
-        return cart.stack(list(range(cart.columns.nlevels)))
+        return cart.stack(list(range(cart.columns.nlevels)), future_stack=True)
 
     (
         index,
@@ -387,9 +387,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = sorobn.examples.sprinkler()
 
         >>> bn.full_joint_dist()
         Cloudy  Rain   Sprinkler  Wet grass
@@ -562,10 +562,10 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
         >>> import numpy as np
 
-        >>> bn = hh.examples.sprinkler(seed=42)
+        >>> bn = sorobn.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)  # doctest: +SKIP
@@ -603,10 +603,10 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
         >>> import numpy as np
 
-        >>> bn = hh.examples.sprinkler(seed=42)
+        >>> bn = sorobn.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)  # doctest: +SKIP
@@ -651,10 +651,10 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
         >>> import numpy as np
 
-        >>> bn = hh.examples.sprinkler(seed=42)
+        >>> bn = sorobn.examples.sprinkler(seed=42)
 
         >>> event = {'Sprinkler': True}
         >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)  # doctest: +SKIP
@@ -720,9 +720,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.sprinkler()
+        >>> bn = sorobn.examples.sprinkler()
 
         >>> bn.query('Rain', event={'Sprinkler': True}, algorithm='exact')
         Rain
@@ -798,9 +798,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.asia()
+        >>> bn = sorobn.examples.asia()
 
         >>> event = {'Visit to Asia': True, 'Smoker': True}
         >>> bn.query('Lung cancer', 'Tuberculosis', event=event)
@@ -958,15 +958,15 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> hh.BayesNet(
+        >>> sorobn.BayesNet(
         ...     ('a', 'b'),
         ...     ('a', 'c')
         ... ).is_tree
         True
 
-        >>> hh.BayesNet(
+        >>> sorobn.BayesNet(
         ...     ('a', 'c'),
         ...     ('b', 'c')
         ... ).is_tree
@@ -986,9 +986,9 @@ class BayesNet:
 
         The following article is taken from the Markov blanket Wikipedia article.
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.BayesNet(
+        >>> bn = sorobn.BayesNet(
         ...     (0, 3),
         ...     (1, 4),
         ...     (2, 5),
@@ -1020,9 +1020,9 @@ class BayesNet:
         Examples
         --------
 
-        >>> import sorobn as hh
+        >>> import sorobn
 
-        >>> bn = hh.examples.asia()
+        >>> bn = sorobn.examples.asia()
 
         >>> for node in bn.iter_dfs():
         ...     print(node)

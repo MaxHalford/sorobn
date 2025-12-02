@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import sorobn as hh
+import sorobn
 
 
 def check_partial_fit(bn):
@@ -76,7 +76,7 @@ def check_query(bn):
 
 
 def naive():
-    bn = hh.BayesNet("A", "B", "C")
+    bn = sorobn.BayesNet("A", "B", "C")
     bn.P["A"] = pd.Series({True: 0.1, False: 0.9})
     bn.P["B"] = pd.Series({True: 0.3, False: 0.7})
     bn.P["C"] = pd.Series({True: 0.5, False: 0.5})
@@ -113,7 +113,7 @@ def test(bn, check):
 def test_indep_vars():
     """This doctest checks that querying with independent variables works as expected.
 
-    >>> bn = hh.BayesNet()
+    >>> bn = sorobn.BayesNet()
     >>> bn.P['A'] = pd.Series({1: .2, 2: .3, 3: .5})
     >>> bn.P['B'] = pd.Series({1: .4, 2: .2, 3: .4})
     >>> bn.prepare()
@@ -163,7 +163,7 @@ def test_cpt_with_index_names():
     """
 
     edges = pd.DataFrame({"parent": ["A", "B"], "child": "C"})
-    bn = hh.BayesNet(*edges.itertuples(index=False, name=None))
+    bn = sorobn.BayesNet(*edges.itertuples(index=False, name=None))
 
     bn.P["A"] = pd.Series({True: 0.7, False: 0.3})
     bn.P["B"] = pd.Series({True: 0.4, False: 0.6})
@@ -195,7 +195,7 @@ def test_cpt_with_index_names():
 
 
 def test_predict_proba_order_doesnt_matter():
-    bn = hh.examples.alarm()
+    bn = sorobn.examples.alarm()
     event = {
         "Alarm": False,
         "Burglary": False,
