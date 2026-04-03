@@ -10,7 +10,7 @@ license = "MIT"
 requires-python = ">=3.13"
 dependencies = [
     "pandas>=2.3.3",
-    "vose>=0.2.4",
+    "vose>=0.2.5",
 ]
 
 [dependency-groups]
