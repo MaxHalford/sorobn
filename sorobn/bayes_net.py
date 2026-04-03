@@ -332,7 +332,31 @@ class BayesNet:
 
         """
 
-        for node, P in self.P.items():
+        for node in list(self.P):
+            P = self.P[node]
+
+            # Convert DataFrame with a "p" column to a Series with a named index
+            if isinstance(P, pd.DataFrame):
+                if "p" not in P.columns:
+                    raise ValueError(
+                        f"DataFrame for '{node}' must have a 'p' column "
+                        f"containing probabilities"
+                    )
+                index_cols = [c for c in P.columns if c != "p"]
+                parents = self.parents.get(node, [])
+                expected = set(parents) | {node}
+                if set(index_cols) != expected:
+                    raise ValueError(
+                        f"DataFrame for '{node}' has columns {index_cols}, "
+                        f"but expected {sorted(expected)} (plus 'p')"
+                    )
+                if parents:
+                    ordered = [*parents, node]
+                else:
+                    ordered = [node]
+                P = P.set_index(ordered)["p"]
+                self.P[node] = P
+
             if node not in self.parents:
                 P.index.name = node
             elif set(P.index.names) == set([*self.parents[node], node]):

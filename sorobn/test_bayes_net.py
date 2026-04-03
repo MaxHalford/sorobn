@@ -194,6 +194,151 @@ def test_cpt_with_index_names():
     )
 
 
+def test_cpt_dataframe():
+    """Test that CPTs can be specified as DataFrames with a 'p' column."""
+
+    bn = sorobn.BayesNet(
+        ("A", "C"),
+        ("B", "C"),
+    )
+
+    bn.P["A"] = pd.Series({True: 0.7, False: 0.3})
+    bn.P["B"] = pd.Series({True: 0.4, False: 0.6})
+    bn.P["C"] = pd.DataFrame(
+        {
+            "A": [True, True, True, True, False, False, False, False],
+            "B": [True, True, False, False, True, True, False, False],
+            "C": [True, False, True, False, True, False, True, False],
+            "p": [1, 0, 0.5, 0.5, 0.5, 0.5, 0.001, 0.999],
+        }
+    )
+    bn.prepare()
+
+    # Verify the CPT was properly converted to a Series
+    P = bn.P["C"]
+    assert isinstance(P, pd.Series)
+    assert P.index.names == ["A", "B", "C"]
+    assert P.groupby(["A", "B"]).sum().eq(1).all()
+
+    pd.testing.assert_series_equal(
+        bn.query("C", event={"A": True, "B": False}),
+        pd.Series([0.5, 0.5], name="P(C)", index=pd.Index([False, True], name="C")),
+    )
+
+
+def test_cpt_dataframe_column_order_doesnt_matter():
+    """Test that DataFrame column order doesn't affect the result."""
+
+    bn1 = sorobn.BayesNet(("A", "C"), ("B", "C"))
+    bn1.P["A"] = pd.Series({True: 0.7, False: 0.3})
+    bn1.P["B"] = pd.Series({True: 0.4, False: 0.6})
+    # Columns in order: A, B, C
+    bn1.P["C"] = pd.DataFrame(
+        {
+            "A": [True, True, False, False],
+            "B": [True, False, True, False],
+            "C": [True, True, True, True],
+            "p": [0.9, 0.8, 0.7, 0.1],
+        }
+    )
+    bn1.prepare()
+
+    bn2 = sorobn.BayesNet(("A", "C"), ("B", "C"))
+    bn2.P["A"] = pd.Series({True: 0.7, False: 0.3})
+    bn2.P["B"] = pd.Series({True: 0.4, False: 0.6})
+    # Columns in different order: B, C, A
+    bn2.P["C"] = pd.DataFrame(
+        {
+            "B": [True, False, True, False],
+            "C": [True, True, True, True],
+            "A": [True, True, False, False],
+            "p": [0.9, 0.8, 0.7, 0.1],
+        }
+    )
+    bn2.prepare()
+
+    pd.testing.assert_series_equal(bn1.P["C"], bn2.P["C"])
+
+
+def test_cpt_dataframe_missing_p_column():
+    """Test that a DataFrame without a 'p' column raises an error."""
+
+    bn = sorobn.BayesNet(("A", "B"))
+    bn.P["A"] = pd.Series({True: 0.5, False: 0.5})
+    bn.P["B"] = pd.DataFrame(
+        {
+            "A": [True, True, False, False],
+            "B": [True, False, True, False],
+            "prob": [0.9, 0.1, 0.4, 0.6],  # wrong column name
+        }
+    )
+    with pytest.raises(ValueError, match="must have a 'p' column"):
+        bn.prepare()
+
+
+def test_cpt_dataframe_wrong_columns():
+    """Test that a DataFrame with wrong variable columns raises an error."""
+
+    bn = sorobn.BayesNet(("A", "B"))
+    bn.P["A"] = pd.Series({True: 0.5, False: 0.5})
+    bn.P["B"] = pd.DataFrame(
+        {
+            "A": [True, True, False, False],
+            "X": [True, False, True, False],  # wrong column name
+            "p": [0.9, 0.1, 0.4, 0.6],
+        }
+    )
+    with pytest.raises(ValueError, match="has columns"):
+        bn.prepare()
+
+
+def test_cpt_dataframe_with_string_values():
+    """Test DataFrame CPT format with non-boolean values."""
+
+    bn = sorobn.BayesNet(("Weather", "Mood"))
+
+    bn.P["Weather"] = pd.Series({"Sunny": 0.7, "Rainy": 0.3})
+    bn.P["Mood"] = pd.DataFrame(
+        {
+            "Weather": ["Sunny", "Sunny", "Rainy", "Rainy"],
+            "Mood": ["Happy", "Sad", "Happy", "Sad"],
+            "p": [0.9, 0.1, 0.4, 0.6],
+        }
+    )
+    bn.prepare()
+
+    result = bn.query("Mood", event={"Weather": "Sunny"})
+    assert math.isclose(result["Happy"], 0.9)
+    assert math.isclose(result["Sad"], 0.1)
+
+
+def test_cpt_dataframe_rows_format():
+    """Test DataFrame CPT using row-based initialization with explicit columns."""
+
+    bn = sorobn.BayesNet(("A", "C"), ("B", "C"))
+    bn.P["A"] = pd.Series({True: 0.5, False: 0.5})
+    bn.P["B"] = pd.Series({True: 0.5, False: 0.5})
+    bn.P["C"] = pd.DataFrame(
+        [
+            [True, True, True, 0.9],
+            [True, True, False, 0.1],
+            [True, False, True, 0.6],
+            [True, False, False, 0.4],
+            [False, True, True, 0.7],
+            [False, True, False, 0.3],
+            [False, False, True, 0.2],
+            [False, False, False, 0.8],
+        ],
+        columns=["A", "B", "C", "p"],
+    )
+    bn.prepare()
+
+    P = bn.P["C"]
+    assert isinstance(P, pd.Series)
+    assert P.index.names == ["A", "B", "C"]
+    assert P.groupby(["A", "B"]).sum().eq(1).all()
+
+
 def test_predict_proba_order_doesnt_matter():
     bn = sorobn.examples.alarm()
     event = {
