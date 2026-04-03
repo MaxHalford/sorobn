@@ -74,7 +74,7 @@ You may also use the following notation, which is slightly more terse:
 
 ```
 
-In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table) are given. Therefore, we can define them manually by setting the values of the `P` attribute:
+In Judea Pearl's example, the [conditional probability tables](https://www.wikiwand.com/en/Conditional_probability_table) are given. Therefore, we can define them manually by setting the values of the `P` attribute. Each CPT is defined as a `pd.DataFrame` where each column is a variable and the `p` column contains the probabilities. The column names make the variable ordering explicit, so there's no ambiguity:
 
 ```python
 >>> import pandas as pd
@@ -86,39 +86,49 @@ In Judea Pearl's example, the [conditional probability tables](https://www.wikiw
 >>> bn.P['Earthquake'] = pd.Series({False: .998, True: .002})
 
 # P(Alarm | Burglary, Earthquake)
->>> bn.P['Alarm'] = pd.Series({
-...     (True, True, True): .95,
-...     (True, True, False): .05,
-...
-...     (True, False, True): .94,
-...     (True, False, False): .06,
-...
-...     (False, True, True): .29,
-...     (False, True, False): .71,
-...
-...     (False, False, True): .001,
-...     (False, False, False): .999
+>>> bn.P['Alarm'] = pd.DataFrame({
+...     'Burglary':   [True,  True, True,  True, False, False, False, False],
+...     'Earthquake': [True,  True, False, False, True,  True, False, False],
+...     'Alarm':      [True, False, True,  False, True, False, True,  False],
+...     'p':          [.95,   .05,  .94,   .06,   .29,   .71,  .001,  .999],
 ... })
 
-☝️ The order of the keys in the above series is `(Burglary, Earthquake, Alarm)`.
-
 # P(John calls | Alarm)
->>> bn.P['John calls'] = pd.Series({
-...     (True, True): .9,
-...     (True, False): .1,
-...     (False, True): .05,
-...     (False, False): .95
+>>> bn.P['John calls'] = pd.DataFrame({
+...     'Alarm':      [True, True, False, False],
+...     'John calls': [True, False, True, False],
+...     'p':          [.9,   .1,   .05,   .95],
 ... })
 
 # P(Mary calls | Alarm)
->>> bn.P['Mary calls'] = pd.Series({
-...     (True, True): .7,
-...     (True, False): .3,
-...     (False, True): .01,
-...     (False, False): .99
+>>> bn.P['Mary calls'] = pd.DataFrame({
+...     'Alarm':      [True, True, False, False],
+...     'Mary calls': [True, False, True, False],
+...     'p':          [.7,   .3,   .01,   .99],
 ... })
 
 ```
+
+You can also initialize DataFrames with a list of rows and explicit column names, which some may find more readable:
+
+```python
+>>> bn.P['Alarm'] = pd.DataFrame(
+...     [
+...         [True,  True,  True,  .95],
+...         [True,  True,  False, .05],
+...         [True,  False, True,  .94],
+...         [True,  False, False, .06],
+...         [False, True,  True,  .29],
+...         [False, True,  False, .71],
+...         [False, False, True,  .001],
+...         [False, False, False, .999],
+...     ],
+...     columns=['Burglary', 'Earthquake', 'Alarm', 'p'],
+... )
+
+```
+
+The column order in the DataFrame doesn't matter — `prepare()` will reorder them to match the network structure. For root nodes (no parents), a simple `pd.Series` is sufficient.
 
 The `prepare` method has to be called whenever the structure and/or the P are manually specified. This will do some house-keeping and make sure everything is sound. It is not compulsory but highly recommended, just like brushing your teeth.
 

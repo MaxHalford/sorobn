@@ -46,27 +46,31 @@ def alarm(**kwargs) -> BayesNet:
     bn.P["Earthquake"] = pd.Series({F: 0.998, T: 0.002})
 
     # P(Alarm | Burglary, Earthquake)
-    bn.P["Alarm"] = pd.Series(
+    bn.P["Alarm"] = pd.DataFrame(
         {
-            (T, T, T): 0.95,
-            (T, T, F): 0.05,
-            (T, F, T): 0.94,
-            (T, F, F): 0.06,
-            (F, T, T): 0.29,
-            (F, T, F): 0.71,
-            (F, F, T): 0.001,
-            (F, F, F): 0.999,
+            "Burglary": [T, T, T, T, F, F, F, F],
+            "Earthquake": [T, T, F, F, T, T, F, F],
+            "Alarm": [T, F, T, F, T, F, T, F],
+            "p": [0.95, 0.05, 0.94, 0.06, 0.29, 0.71, 0.001, 0.999],
         }
     )
 
     # P(John calls | Alarm)
-    bn.P["John calls"] = pd.Series(
-        {(T, T): 0.9, (T, F): 0.1, (F, T): 0.05, (F, F): 0.95}
+    bn.P["John calls"] = pd.DataFrame(
+        {
+            "Alarm": [T, T, F, F],
+            "John calls": [T, F, T, F],
+            "p": [0.9, 0.1, 0.05, 0.95],
+        }
     )
 
     # P(Mary calls | Alarm)
-    bn.P["Mary calls"] = pd.Series(
-        {(T, T): 0.7, (T, F): 0.3, (F, T): 0.01, (F, F): 0.99}
+    bn.P["Mary calls"] = pd.DataFrame(
+        {
+            "Alarm": [T, T, F, F],
+            "Mary calls": [T, F, T, F],
+            "p": [0.7, 0.3, 0.01, 0.99],
+        }
     )
 
     bn.prepare()
@@ -105,54 +109,64 @@ def asia(**kwargs) -> BayesNet:
     F = False
 
     # P(Visit to Asia)
-    bn.P["Visit to Asia"] = pd.Series({T: 0.01, False: 0.99})
+    bn.P["Visit to Asia"] = pd.Series({T: 0.01, F: 0.99})
 
     # P(Tuberculosis | Visit to Asia)
-    bn.P["Tuberculosis"] = pd.Series(
-        {(T, T): 0.05, (T, False): 0.95, (False, T): 0.01, (False, False): 0.99}
+    bn.P["Tuberculosis"] = pd.DataFrame(
+        {
+            "Visit to Asia": [T, T, F, F],
+            "Tuberculosis": [T, F, T, F],
+            "p": [0.05, 0.95, 0.01, 0.99],
+        }
     )
 
     # P(Smoker)
     bn.P["Smoker"] = pd.Series({T: 0.5, F: 0.5})
 
     # P(Lung cancer | Smoker)
-    bn.P["Lung cancer"] = pd.Series(
-        {(T, T): 0.1, (T, F): 0.9, (F, T): 0.01, (F, F): 0.99}
+    bn.P["Lung cancer"] = pd.DataFrame(
+        {
+            "Smoker": [T, T, F, F],
+            "Lung cancer": [T, F, T, F],
+            "p": [0.1, 0.9, 0.01, 0.99],
+        }
     )
 
     # P(Bronchitis | Smoker)
-    bn.P["Bronchitis"] = pd.Series({(T, T): 0.6, (T, F): 0.4, (F, T): 0.3, (F, F): 0.7})
+    bn.P["Bronchitis"] = pd.DataFrame(
+        {
+            "Smoker": [T, T, F, F],
+            "Bronchitis": [T, F, T, F],
+            "p": [0.6, 0.4, 0.3, 0.7],
+        }
+    )
 
     # P(TB or cancer | Tuberculosis, Lung cancer)
-    bn.P["TB or cancer"] = pd.Series(
+    bn.P["TB or cancer"] = pd.DataFrame(
         {
-            (T, T, T): 1,
-            (T, T, F): 0,
-            (T, F, T): 1,
-            (T, F, F): 0,
-            (F, T, T): 1,
-            (F, T, F): 0,
-            (F, F, T): 0,
-            (F, F, F): 1,
+            "Lung cancer": [T, T, T, T, F, F, F, F],
+            "Tuberculosis": [T, T, F, F, T, T, F, F],
+            "TB or cancer": [T, F, T, F, T, F, T, F],
+            "p": [1, 0, 1, 0, 1, 0, 0, 1],
         }
     )
 
     # P(Positive X-ray | TB or cancer)
-    bn.P["Positive X-ray"] = pd.Series(
-        {(T, T): 0.98, (T, F): 0.02, (F, T): 0.05, (F, F): 0.95}
+    bn.P["Positive X-ray"] = pd.DataFrame(
+        {
+            "TB or cancer": [T, T, F, F],
+            "Positive X-ray": [T, F, T, F],
+            "p": [0.98, 0.02, 0.05, 0.95],
+        }
     )
 
     # P(Dispnea | TB or cancer, Bronchitis)
-    bn.P["Dispnea"] = pd.Series(
+    bn.P["Dispnea"] = pd.DataFrame(
         {
-            (T, T, T): 0.9,
-            (T, T, F): 0.1,
-            (F, T, T): 0.7,
-            (F, T, F): 0.3,
-            (T, F, T): 0.8,
-            (T, F, F): 0.2,
-            (F, F, T): 0.1,
-            (F, F, F): 0.9,
+            "Bronchitis": [T, T, T, T, F, F, F, F],
+            "TB or cancer": [T, T, F, F, T, T, F, F],
+            "Dispnea": [T, F, T, F, T, F, T, F],
+            "p": [0.9, 0.1, 0.7, 0.3, 0.8, 0.2, 0.1, 0.9],
         }
     )
 
@@ -196,22 +210,30 @@ def sprinkler(**kwargs) -> BayesNet:
     bn.P["Cloudy"] = pd.Series({F: 0.5, T: 0.5})
 
     # P(Sprinkler | Cloudy)
-    bn.P["Sprinkler"] = pd.Series({(T, T): 0.1, (T, F): 0.9, (F, T): 0.5, (F, F): 0.5})
+    bn.P["Sprinkler"] = pd.DataFrame(
+        {
+            "Cloudy": [T, T, F, F],
+            "Sprinkler": [T, F, T, F],
+            "p": [0.1, 0.9, 0.5, 0.5],
+        }
+    )
 
     # P(Rain | Cloudy)
-    bn.P["Rain"] = pd.Series({(T, T): 0.8, (T, F): 0.2, (F, T): 0.2, (F, F): 0.8})
+    bn.P["Rain"] = pd.DataFrame(
+        {
+            "Cloudy": [T, T, F, F],
+            "Rain": [T, F, T, F],
+            "p": [0.8, 0.2, 0.2, 0.8],
+        }
+    )
 
     # P(Wet grass | Sprinkler, Rain)
-    bn.P["Wet grass"] = pd.Series(
+    bn.P["Wet grass"] = pd.DataFrame(
         {
-            (T, T, T): 0.99,
-            (T, T, F): 0.01,
-            (T, F, T): 0.9,
-            (T, F, F): 0.1,
-            (F, T, T): 0.9,
-            (F, T, F): 0.1,
-            (F, F, T): 0,
-            (F, F, F): 1,
+            "Rain": [T, T, T, T, F, F, F, F],
+            "Sprinkler": [T, T, F, F, T, T, F, F],
+            "Wet grass": [T, F, T, F, T, F, T, F],
+            "p": [0.99, 0.01, 0.9, 0.1, 0.9, 0.1, 0, 1],
         }
     )
 
@@ -263,43 +285,37 @@ def grades(**kwargs):
     # P(Intelligence)
     bn.P["Intelligence"] = pd.Series({"Average": 0.7, "Smart": 0.3})
 
-    # P(Grade | Difficult, Intelligence)
-    bn.P["Grade"] = pd.Series(
+    # P(Grade | Difficulty, Intelligence)
+    bn.P["Grade"] = pd.DataFrame(
         {
-            ("Easy", "Average", "A"): 0.3,
-            ("Easy", "Average", "B"): 0.4,
-            ("Easy", "Average", "C"): 0.3,
-            ("Easy", "Smart", "A"): 0.9,
-            ("Easy", "Smart", "B"): 0.08,
-            ("Easy", "Smart", "C"): 0.02,
-            ("Hard", "Average", "A"): 0.05,
-            ("Hard", "Average", "B"): 0.25,
-            ("Hard", "Average", "C"): 0.7,
-            ("Hard", "Smart", "A"): 0.5,
-            ("Hard", "Smart", "B"): 0.3,
-            ("Hard", "Smart", "C"): 0.2,
+            "Difficulty": [
+                "Easy", "Easy", "Easy", "Easy", "Easy", "Easy",
+                "Hard", "Hard", "Hard", "Hard", "Hard", "Hard",
+            ],
+            "Intelligence": [
+                "Average", "Average", "Average", "Smart", "Smart", "Smart",
+                "Average", "Average", "Average", "Smart", "Smart", "Smart",
+            ],
+            "Grade": ["A", "B", "C", "A", "B", "C", "A", "B", "C", "A", "B", "C"],
+            "p": [0.3, 0.4, 0.3, 0.9, 0.08, 0.02, 0.05, 0.25, 0.7, 0.5, 0.3, 0.2],
         }
     )
 
     # P(SAT | Intelligence)
-    bn.P["SAT"] = pd.Series(
+    bn.P["SAT"] = pd.DataFrame(
         {
-            ("Average", "Failure"): 0.95,
-            ("Average", "Success"): 0.05,
-            ("Smart", "Failure"): 0.2,
-            ("Smart", "Success"): 0.8,
+            "Intelligence": ["Average", "Average", "Smart", "Smart"],
+            "SAT": ["Failure", "Success", "Failure", "Success"],
+            "p": [0.95, 0.05, 0.2, 0.8],
         }
     )
 
     # P(Letter | Grade)
-    bn.P["Letter"] = pd.Series(
+    bn.P["Letter"] = pd.DataFrame(
         {
-            ("A", "Weak"): 0.1,
-            ("A", "Strong"): 0.9,
-            ("B", "Weak"): 0.4,
-            ("B", "Strong"): 0.6,
-            ("C", "Weak"): 0.99,
-            ("C", "Strong"): 0.01,
+            "Grade": ["A", "A", "B", "B", "C", "C"],
+            "Letter": ["Weak", "Strong", "Weak", "Strong", "Weak", "Strong"],
+            "p": [0.1, 0.9, 0.4, 0.6, 0.99, 0.01],
         }
     )
 
