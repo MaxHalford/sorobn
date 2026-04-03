@@ -466,7 +466,7 @@ wheels = [
 
 [[package]]
 name = "sorobn"
-version = "0.5.0"
+version = "0.5.1"
 source = { editable = "." }
 dependencies = [
     { name = "pandas" },
@@ -483,7 +483,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "pandas", specifier = ">=2.3.3" },
-    { name = "vose", specifier = ">=0.2.3" },
+    { name = "vose", specifier = ">=0.2.4" },
 ]
 
 [package.metadata.requires-dev]
@@ -504,18 +504,11 @@ wheels = [
 
 [[package]]
 name = "vose"
-version = "0.2.3"
+version = "0.2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/f3/058ea855a301099f22c822fdc79c8e2a8ecd674e4285a05207f070f7b4b7/vose-0.2.3.tar.gz", hash = "sha256:be3b343c7956108e07ed849b87b51f27afc9744fcb02b151e8bf3df78fd6e448", size = 171440, upload-time = "2025-11-01T20:02:50.542Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/bb/a5df030c41b58736e2b4adca66a9f41139d2630efc57e3ee0fb1f5fa5a11/vose-0.2.3-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:b40075a756f6e18fc97a66c11893139bb52ac5b87d92a2393a74bb8d683075b3", size = 349474, upload-time = "2025-11-01T20:02:39.982Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/5b/bb98a1a2094e6aea6eb54fde9fb49950b1a69b43cbdfe6d393dc4e47116d/vose-0.2.3-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3e099ff85ecb52eda12d98abfcf959f30676dcfc8be89626dc952454f029e542", size = 743798, upload-time = "2025-11-01T20:02:41.603Z" },
-    { url = "https://files.pythonhosted.org/packages/e1/ac/371e4e37aeb00daf891a2bf8b48300b27cec29bcc02b65c3673f92cb0f2a/vose-0.2.3-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a2c3e4dff28b6464ccb44f543729a80bdef787bdc631939b46b46462cbd5a5ea", size = 755485, upload-time = "2025-11-01T20:02:43.137Z" },
-    { url = "https://files.pythonhosted.org/packages/5e/8a/fa362ef16ebce818085bcd646d54540c5bd18de59e7eab73c73d6fbf2e41/vose-0.2.3-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:98e590737476f661c16c5de3d22f62002f449347b476900bee644cf90ef5597c", size = 1708844, upload-time = "2025-11-01T20:02:44.463Z" },
-    { url = "https://files.pythonhosted.org/packages/ac/63/58cbb6e4534a28654d4b9833d73b1c2f97959c53f479ff2bea5d11d3a556/vose-0.2.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:3d7d4c964dc80fa8f77c9df96ecc1bde66375afb43bda459a00f5ad0f33f215d", size = 1780996, upload-time = "2025-11-01T20:02:46.044Z" },
-    { url = "https://files.pythonhosted.org/packages/61/bc/3ce236b5428d5f74f37ee091e5b24c0f41dee631094e3826deacd00b917b/vose-0.2.3-cp313-cp313-win32.whl", hash = "sha256:f86e4dbd428e9ac9eefe6dc9c2b7c30ecfe540cf6a8df670f93604cd0ee4dd7c", size = 235309, upload-time = "2025-11-01T20:02:47.69Z" },
-    { url = "https://files.pythonhosted.org/packages/ce/9f/19316e4ad522a58de637a7e9b7e8042a04d812bc21792b7908e53ed694ad/vose-0.2.3-cp313-cp313-win_amd64.whl", hash = "sha256:dc0353999c478fb63e26cbfc3af0822ad810f211b65cc87fe604652e1963f483", size = 248231, upload-time = "2025-11-01T20:02:49.143Z" },
+    { url = "https://files.pythonhosted.org/packages/38/58/ec2044ca89c22fdf9a3801091fdb5ea66b93fdf4e9484cfff5574921cf81/vose-0.2.4-cp311-abi3-macosx_10_9_universal2.whl", hash = "sha256:c9de283c2695d0267527ae2e6a750c655c769caa54eb8f96c97f2dcc02194b8d", size = 332444, upload-time = "2026-04-03T21:33:18.737Z" },
 ]
