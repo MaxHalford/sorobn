@@ -1,0 +1,16 @@
+project:
+  type: website
+  output-dir: _output
+
+format:
+  computo-html:
+    self-contained: true
+    toc: true
+
+metadata:
+  title: "Path Sampling in Bayesian Networks: A Simple Algorithm for Selectivity Estimation"
+
+bibliography: references.bib
+
+execute:
+  freeze: auto

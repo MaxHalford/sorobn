@@ -1,0 +1,7 @@
+sorobn
+duckdb
+pandas
+numpy
+matplotlib
+scikit-learn
+jupyter

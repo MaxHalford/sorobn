@@ -1,0 +1,6 @@
+[submodule "paper/job"]
+	path = paper/job
+	url = https://github.com/gregrahn/join-order-benchmark.git
+[submodule "paper/stats-ceb"]
+	path = paper/stats-ceb
+	url = https://github.com/Nathaniel-Han/End-to-End-CardEst-Benchmark.git
