@@ -323,6 +323,7 @@ class BayesNet:
 
         self.P = {}
         self._P_sizes = {}
+        self._forward_compiled = None
 
         from .sampling import PathSampler, JunctionTreeSampler
         self._path_sampler = PathSampler(self)
@@ -373,6 +374,8 @@ class BayesNet:
                 if node in self.parents
                 else f"P({node})"
             )
+
+        self._forward_compiled = None
 
     def ancestors(self, node):
         """Return a node's ancestors."""
@@ -521,6 +524,32 @@ class BayesNet:
         self._P_sizes = {}
         return self.partial_fit(X)
 
+    def _forward_sample_fast(self) -> typing.Iterator[dict]:
+        """Fast forward sampling using precompiled lookups (no likelihood)."""
+        if self._forward_compiled is None:
+            from .sampling import _compile_conditional
+            compiled = {}
+            for node in self.nodes:
+                P = self.P[node]
+                node_parents = self.parents.get(node, [])
+                compiled[node] = _compile_conditional(P, node_parents, self._rng)
+            self._forward_compiled = compiled
+        compiled = self._forward_compiled
+        nodes = self.nodes
+        parents = self.parents
+
+        while True:
+            sample = {}
+            for node in nodes:
+                lookup = compiled[node]
+                if node in parents:
+                    condition = tuple(sample[p] for p in parents[node])
+                else:
+                    condition = ()
+                values, sampler = lookup[condition]
+                sample[node] = values[sampler.sample()]
+            yield sample
+
     def _forward_sample(
         self, init: dict = None
     ) -> typing.Iterator[typing.Tuple[dict, float]]:
@@ -639,7 +668,10 @@ class BayesNet:
         """
 
         if method == "forward":
-            sampler = (sample for sample, _ in self._forward_sample(init))
+            if init:
+                sampler = (sample for sample, _ in self._forward_sample(init))
+            else:
+                sampler = self._forward_sample_fast()
 
         elif method == "path":
             sampler = self._path_sampler.iter_samples(self._rng, init)
