@@ -339,6 +339,215 @@ def test_cpt_dataframe_rows_format():
     assert P.groupby(["A", "B"]).sum().eq(1).all()
 
 
+def test_conditional_reversal():
+    """Test that _conditional correctly reverses CPDs via Bayes' theorem.
+
+    In a network (A,B) -> C learned from data where only (T,T,T) and (F,F,F) exist,
+    P(B | A=T, C=T) should be 1.0 for B=T (not 0.5 as the marginal P(B) would suggest).
+
+    """
+    X = pd.DataFrame(
+        [[True, True, True], [False, False, False]],
+        columns=["A", "B", "C"],
+    )
+    bn = sorobn.BayesNet((["A", "B"], "C"))
+    bn.fit(X)
+
+    # P(B | A=True, C=True) should be deterministic: B=True
+    P = bn._conditional("B", event={"A": True, "C": True})
+    assert math.isclose(P[True], 1.0)
+    assert False not in P.index or math.isclose(P[False], 0.0)
+
+    # P(B | A=False, C=False) should be deterministic: B=False
+    P = bn._conditional("B", event={"A": False, "C": False})
+    assert math.isclose(P[False], 1.0)
+    assert True not in P.index or math.isclose(P[True], 0.0)
+
+
+def test_conditional_marginalizes_hidden():
+    """Test that _conditional correctly marginalizes unobserved variables.
+
+    In the network A->B, B->C, (A,C)->D with data [(1,1,1,1), (2,1,2,1)],
+    P(C | A=1, B=1) should be 1.0 for C=1, because D's CPD only has entries for
+    (A=1,C=1) and (A=2,C=2).
+
+    """
+    X = pd.DataFrame(
+        [[1, 1, 1, 1], [2, 1, 2, 1]],
+        columns=["A", "B", "C", "D"],
+    )
+    bn = sorobn.BayesNet(("A", "B"), ("B", "C"), (["A", "C"], "D"))
+    bn.fit(X)
+
+    # Without considering D, P(C|B=1) would be 0.5/0.5.
+    # But D's CPD constrains (A=1,C=2) to be impossible, so P(C=1|A=1,B=1) = 1
+    P = bn._conditional("C", event={"A": 1, "B": 1})
+    assert math.isclose(P[1], 1.0)
+
+
+def test_conditional_no_evidence():
+    """Test that _conditional with no event returns the marginal."""
+    bn = sorobn.examples.sprinkler()
+    P = bn._conditional("Cloudy", event={})
+    assert math.isclose(P[True], 0.5)
+    assert math.isclose(P[False], 0.5)
+
+
+def test_dfs_order_visits_all_nodes():
+    """Test that _dfs_order visits every node exactly once."""
+    for example_fn in (sorobn.examples.sprinkler, sorobn.examples.asia, sorobn.examples.alarm):
+        bn = example_fn()
+        order = bn._dfs_order()
+        assert sorted(order) == sorted(bn.nodes)
+        assert len(order) == len(set(order))
+
+
+def test_path_sample_only_valid():
+    """Test that path sampling never produces invalid (zero-probability) samples.
+
+    This is the core property: forward sampling can fail on these networks,
+    but path sampling should always produce valid samples.
+
+    """
+    # Example 1: (A,B) -> C with only (T,T,T) and (F,F,F)
+    X = pd.DataFrame(
+        [[True, True, True], [False, False, False]],
+        columns=["A", "B", "C"],
+    )
+    bn = sorobn.BayesNet((["A", "B"], "C"), seed=42)
+    bn.fit(X)
+
+    for _ in range(50):
+        s = bn.sample(method="path")
+        assert (s["A"] == s["B"] == s["C"]), f"Invalid sample: {dict(s)}"
+
+    # Example 2: A->B, B->C, (A,C)->D
+    X = pd.DataFrame(
+        [[1, 1, 1, 1], [2, 1, 2, 1]],
+        columns=["A", "B", "C", "D"],
+    )
+    bn = sorobn.BayesNet(("A", "B"), ("B", "C"), (["A", "C"], "D"), seed=42)
+    bn.fit(X)
+
+    fjd = bn.full_joint_dist()
+    for _ in range(50):
+        s = bn.sample(method="path")
+        key = tuple(s[col] for col in fjd.index.names)
+        assert key in fjd.index, f"Invalid sample: {dict(s)}"
+
+
+def test_path_sample_distribution():
+    """Test that path sampling converges to the correct distribution."""
+    bn = sorobn.examples.sprinkler(seed=42)
+    fjd = bn.full_joint_dist()
+
+    df = bn.sample(n=5000, method="path")
+    empirical = df.value_counts(normalize=True)
+    # Reindex to match fjd
+    empirical = empirical.reindex(fjd.index, fill_value=0)
+
+    # Allow some sampling noise, but should be close
+    max_err = (fjd - empirical).abs().max()
+    assert max_err < 0.03, f"Max error {max_err} too large"
+
+
+def test_path_sample_with_init():
+    """Test that path sampling respects init (fixed values)."""
+    bn = sorobn.examples.sprinkler(seed=42)
+
+    for _ in range(20):
+        s = bn.sample(method="path", init={"Cloudy": True})
+        assert s["Cloudy"] == True
+
+
+def test_junction_tree_graph_algorithms():
+    """Test the junction tree graph algorithm primitives."""
+    from sorobn.sampling import moralize, triangulate, find_cliques, build_junction_tree
+
+    # Sprinkler: Cloudy -> Rain, Cloudy -> Sprinkler, (Rain, Sprinkler) -> Wet grass
+    bn = sorobn.examples.sprinkler()
+    adj = moralize(bn.parents, bn.children, bn.nodes)
+
+    # Rain and Sprinkler should be married (co-parents of Wet grass)
+    assert "Rain" in adj["Sprinkler"]
+    assert "Sprinkler" in adj["Rain"]
+
+    tri_adj, order = triangulate(adj)
+    assert set(order) == set(bn.nodes)
+
+    cliques = find_cliques(tri_adj, order)
+    # Every node must appear in at least one clique
+    all_vars = set().union(*cliques)
+    assert all_vars == set(bn.nodes)
+
+    tree_adj = build_junction_tree(cliques)
+    # Junction tree has |cliques| - 1 edges
+    n_edges = sum(len(nbs) for nbs in tree_adj.values()) // 2
+    assert n_edges == len(cliques) - 1
+
+
+def test_junction_sample_only_valid():
+    """Test that junction tree sampling never produces invalid samples."""
+    # Example 1
+    X = pd.DataFrame(
+        [[True, True, True], [False, False, False]],
+        columns=["A", "B", "C"],
+    )
+    bn = sorobn.BayesNet((["A", "B"], "C"), seed=42)
+    bn.fit(X)
+
+    for _ in range(50):
+        s = bn.sample(method="junction")
+        assert (s["A"] == s["B"] == s["C"]), f"Invalid sample: {dict(s)}"
+
+    # Example 2
+    X = pd.DataFrame(
+        [[1, 1, 1, 1], [2, 1, 2, 1]],
+        columns=["A", "B", "C", "D"],
+    )
+    bn = sorobn.BayesNet(("A", "B"), ("B", "C"), (["A", "C"], "D"), seed=42)
+    bn.fit(X)
+
+    fjd = bn.full_joint_dist()
+    for _ in range(50):
+        s = bn.sample(method="junction")
+        key = tuple(s[col] for col in fjd.index.names)
+        assert key in fjd.index, f"Invalid sample: {dict(s)}"
+
+
+def test_junction_sample_distribution():
+    """Test that junction tree sampling converges to the correct distribution."""
+    bn = sorobn.examples.sprinkler(seed=42)
+    fjd = bn.full_joint_dist()
+
+    df = bn.sample(n=5000, method="junction")
+    empirical = df.value_counts(normalize=True).reindex(fjd.index, fill_value=0)
+
+    max_err = (fjd - empirical).abs().max()
+    assert max_err < 0.03, f"Max error {max_err} too large"
+
+
+def test_junction_sample_with_init():
+    """Test that junction tree sampling respects init (fixed values)."""
+    bn = sorobn.examples.sprinkler(seed=42)
+
+    for _ in range(20):
+        s = bn.sample(method="junction", init={"Cloudy": True})
+        assert s["Cloudy"] == True
+
+
+def test_junction_sample_asia():
+    """Test junction tree sampling on the larger Asia network (8 nodes)."""
+    bn = sorobn.examples.asia(seed=42)
+    fjd = bn.full_joint_dist()
+
+    df = bn.sample(n=3000, method="junction")
+    empirical = df.value_counts(normalize=True).reindex(fjd.index, fill_value=0)
+
+    max_err = (fjd - empirical).abs().max()
+    assert max_err < 0.03, f"Max error {max_err} too large"
+
+
 def test_predict_proba_order_doesnt_matter():
     bn = sorobn.examples.alarm()
     event = {
