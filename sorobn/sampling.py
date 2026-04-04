@@ -2,6 +2,7 @@ import collections
 import itertools
 
 import pandas as pd
+import vose
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +137,45 @@ def _factor_names(factor):
     return [factor.index.name]
 
 
+def _compile_conditional(cond, conditioning_vars, rng):
+    """Precompile a conditional table into a fast lookup structure.
+
+    Returns a dict mapping condition tuples to (values, vose.Sampler) pairs.
+    For unconditional tables (no conditioning_vars), returns {(): (values, sampler)}.
+    This bypasses pandas indexing entirely at sample time.
+
+    """
+    seed = rng.randint(1, 2**16)
+    if not conditioning_vars:
+        values = cond.index.tolist()
+        sampler = vose.Sampler(weights=cond.to_numpy(dtype=float), seed=seed)
+        return {(): (values, sampler)}
+
+    lookup = {}
+    if isinstance(cond.index, pd.MultiIndex):
+        n_cond = len(conditioning_vars)
+        # Group by conditioning levels (use scalar level for single variable)
+        level = list(range(n_cond)) if n_cond > 1 else 0
+        groups = cond.groupby(level=level)
+        for key, group in groups:
+            if not isinstance(key, tuple):
+                key = (key,)
+            # Drop conditioning levels to get just query values
+            drop = list(range(n_cond)) if n_cond > 1 else 0
+            vals_idx = group.index.droplevel(drop)
+            values = vals_idx.tolist()
+            weights = group.to_numpy(dtype=float)
+            sampler = vose.Sampler(weights=weights, seed=seed)
+            lookup[key] = (values, sampler)
+    else:
+        # Single-level index with conditioning — shouldn't normally happen
+        values = cond.index.tolist()
+        sampler = vose.Sampler(weights=cond.to_numpy(dtype=float), seed=seed)
+        lookup[()] = (values, sampler)
+
+    return lookup
+
+
 def _normalize_conditional(joint, conditioning_vars, query_vars):
     """Normalize a joint into a conditional P(query | conditioning).
 
@@ -167,18 +207,20 @@ def _normalize_conditional(joint, conditioning_vars, query_vars):
 class PathSampler:
     """Exact sampler that walks a DFS path through the undirected graph skeleton.
 
-    Precomputes a conditional table for each node in DFS order. At sample time,
-    these are accessed via CDTAccessor's cached __getitem__ and Vose sampler for
-    O(1) lookups and sampling.
+    Precomputes a conditional table for each node in DFS order and compiles
+    them into dict-based lookup structures with pre-built Vose samplers for
+    O(1) sampling with no pandas overhead.
 
     """
 
     def __init__(self, bn):
         self.bn = bn
         self._tables = None
+        self._compiled = None
 
     def invalidate(self):
         self._tables = None
+        self._compiled = None
 
     def _build(self):
         from .bayes_net import pointwise_mul
@@ -200,15 +242,25 @@ class PathSampler:
             # Start with the CPT for this node
             factors = [bn.P[node][bn.P[node] > 0].copy()]
 
-            # Add CPTs of visited children (they contain info about `node`)
+            # Add CPTs of children whose other parents are all already
+            # sampled.  These propagate information back (explaining away)
+            # and constrain which parent combinations are valid.  We skip
+            # children that would introduce new unsampled variables.
             for child in bn.children.get(node, []):
-                if child in sampled_so_far:
+                child_parents = set(bn.parents.get(child, []))
+                other_parents = child_parents - {node}
+                if other_parents <= sampled_so_far:
                     factors.append(bn.P[child][bn.P[child] > 0].copy())
 
             # Eliminate hidden variables.  Adding a hidden variable's CPT
             # may introduce further hidden parents, so we iterate until
             # no new hidden variables remain.
             eliminated = set()
+            included_cpts = {node}  # track which nodes' CPTs are in factors
+            included_cpts.update(
+                child for child in bn.children.get(node, [])
+                if (set(bn.parents.get(child, [])) - {node}) <= sampled_so_far
+            )
             while True:
                 factor_vars = set()
                 for f in factors:
@@ -217,8 +269,10 @@ class PathSampler:
                 if not to_eliminate:
                     break
                 for h in list(to_eliminate):
-                    h_cpt = bn.P[h][bn.P[h] > 0].copy()
-                    factors.append(h_cpt)
+                    if h not in included_cpts:
+                        h_cpt = bn.P[h][bn.P[h] > 0].copy()
+                        factors.append(h_cpt)
+                        included_cpts.add(h)
                     relevant = [
                         factors.pop(i)
                         for i in reversed(range(len(factors)))
@@ -243,6 +297,10 @@ class PathSampler:
             sampled_so_far.add(node)
 
         self._tables = tables
+        self._compiled = [
+            (node, cond_vars, _compile_conditional(cond, cond_vars, bn._rng))
+            for node, cond_vars, cond in tables
+        ]
 
     def _ensure_built(self):
         if self._tables is None:
@@ -256,17 +314,17 @@ class PathSampler:
         while True:
             sample = dict(init)
 
-            for node, conditioning_vars, cond in self._tables:
+            for node, conditioning_vars, lookup in self._compiled:
                 if node in sample:
                     continue
 
                 if conditioning_vars:
                     condition = tuple(sample[v] for v in conditioning_vars)
-                    P = cond.cdt[condition]
                 else:
-                    P = cond
+                    condition = ()
 
-                sample[node] = P.cdt.sample(rng=rng)
+                values, sampler = lookup[condition]
+                sample[node] = values[sampler.sample()]
 
             yield sample
 
@@ -279,17 +337,19 @@ class JunctionTreeSampler:
     """Exact sampler using a calibrated junction tree.
 
     Builds and calibrates the junction tree once, then converts each clique's
-    calibrated potential into a conditional table. At sample time, these are
-    accessed via CDTAccessor for O(1) lookups and sampling.
+    calibrated potential into a conditional table and compiles them into
+    dict-based lookup structures with pre-built Vose samplers.
 
     """
 
     def __init__(self, bn):
         self.bn = bn
         self._data = None  # list of (new_vars, sepset_vars, conditional)
+        self._compiled = None
 
     def invalidate(self):
         self._data = None
+        self._compiled = None
 
     def _build(self):
         from .bayes_net import pointwise_mul_two
@@ -352,6 +412,10 @@ class JunctionTreeSampler:
             tables.append((new_vars, sepset, cond))
 
         self._data = tables
+        self._compiled = [
+            (new_vars, sepset, _compile_conditional(cond, sepset, bn._rng))
+            for new_vars, sepset, cond in tables
+        ]
 
     @staticmethod
     def _calibrate(tree_children, order, potentials):
@@ -396,23 +460,23 @@ class JunctionTreeSampler:
         while True:
             sample = dict(init)
 
-            for new_vars, sepset, cond in self._data:
+            for new_vars, sepset, lookup in self._compiled:
                 if all(v in sample for v in new_vars):
                     continue
 
                 if sepset:
                     condition = tuple(sample[v] for v in sepset)
-                    P = cond.cdt[condition]
                 else:
-                    P = cond
+                    condition = ()
 
-                chosen = P.cdt.sample(rng=rng)
+                values, sampler = lookup[condition]
+                chosen = values[sampler.sample()]
                 if len(new_vars) == 1:
                     sample[new_vars[0]] = chosen
                 else:
                     if not isinstance(chosen, tuple):
                         chosen = (chosen,)
-                    for name, val in zip(P.index.names, chosen):
+                    for name, val in zip(new_vars, chosen):
                         if name not in sample:
                             sample[name] = val
 
