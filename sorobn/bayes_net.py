@@ -323,6 +323,11 @@ class BayesNet:
 
         self.P = {}
         self._P_sizes = {}
+        self._forward_compiled = None
+
+        from .sampling import PathSampler, JunctionTreeSampler
+        self._path_sampler = PathSampler(self)
+        self._junction_sampler = JunctionTreeSampler(self)
 
     def prepare(self) -> "BayesNet":
         """Perform house-keeping.
@@ -369,6 +374,8 @@ class BayesNet:
                 if node in self.parents
                 else f"P({node})"
             )
+
+        self._forward_compiled = None
 
     def ancestors(self, node):
         """Return a node's ancestors."""
@@ -507,6 +514,8 @@ class BayesNet:
                 self.P[root] = X[root].value_counts(normalize=True)
 
         self.prepare()
+        self._path_sampler.invalidate()
+        self._junction_sampler.invalidate()
         return self
 
     def fit(self, X: pd.DataFrame):
@@ -514,6 +523,32 @@ class BayesNet:
         self.P = {}
         self._P_sizes = {}
         return self.partial_fit(X)
+
+    def _forward_sample_fast(self) -> typing.Iterator[dict]:
+        """Fast forward sampling using precompiled lookups (no likelihood)."""
+        if self._forward_compiled is None:
+            from .sampling import _compile_conditional
+            compiled = {}
+            for node in self.nodes:
+                P = self.P[node]
+                node_parents = self.parents.get(node, [])
+                compiled[node] = _compile_conditional(P, node_parents, self._rng)
+            self._forward_compiled = compiled
+        compiled = self._forward_compiled
+        nodes = self.nodes
+        parents = self.parents
+
+        while True:
+            sample = {}
+            for node in nodes:
+                lookup = compiled[node]
+                if node in parents:
+                    condition = tuple(sample[p] for p in parents[node])
+                else:
+                    condition = ()
+                values, sampler = lookup[condition]
+                sample[node] = values[sampler.sample()]
+            yield sample
 
     def _forward_sample(
         self, init: dict = None
@@ -547,8 +582,78 @@ class BayesNet:
 
             yield sample, likelihood
 
+    def _dfs_order(self):
+        """Return a DFS ordering over the undirected skeleton of the graph.
+
+        This traverses the graph ignoring edge directions, so that each node (except the
+        first) has at least one already-visited neighbor.
+
+        """
+        neighbors = collections.defaultdict(set)
+        for node, parents in self.parents.items():
+            for parent in parents:
+                neighbors[node].add(parent)
+                neighbors[parent].add(node)
+
+        visited = set()
+        order = []
+        for start in self.nodes:
+            if start in visited:
+                continue
+            stack = [start]
+            while stack:
+                node = stack.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                order.append(node)
+                for nb in sorted(neighbors[node], reverse=True):
+                    if nb not in visited:
+                        stack.append(nb)
+        return order
+
+    def _conditional(self, node, event):
+        """Compute P(node | event) considering all CPDs in the network.
+
+        Unlike _variable_elimination (which only uses ancestor CPDs), this includes
+        descendant CPDs too. This is necessary because descendant CPDs can constrain
+        which parent combinations are valid — e.g. if P(D|A,C) only has entries for
+        certain (A,C) pairs, that constrains P(C | A=a).
+
+        """
+        factors = []
+        for n in self.nodes:
+            factor = self.P[n].copy()
+            for var, val in event.items():
+                if var in factor.index.names:
+                    factor = factor[factor.index.get_level_values(var) == val]
+            if len(factor) > 0:
+                factors.append(factor)
+
+        hidden = [n for n in self.nodes if n != node and n not in event]
+        for h in hidden:
+            relevant = [
+                factors.pop(i)
+                for i in reversed(range(len(factors)))
+                if h in factors[i].index.names
+            ]
+            if relevant:
+                prod = pointwise_mul(relevant)
+                prod = prod.cdt.sum_out(h)
+                factors.append(prod)
+
+        posterior = pointwise_mul(factors)
+        posterior = posterior / posterior.sum()
+
+        if isinstance(posterior.index, pd.MultiIndex):
+            to_drop = [n for n in posterior.index.names if n != node]
+            if to_drop:
+                posterior.index = posterior.index.droplevel(to_drop)
+
+        return posterior
+
     def sample(self, n=1, init: dict | None = None, method="forward"):
-        """Generate a new sample at random by using forward sampling.
+        """Generate a new sample at random.
 
         Parameters
         ----------
@@ -558,15 +663,24 @@ class BayesNet:
         init
             Allows forcing certain variables to take on given values.
         method
-            The sampling method to use. Possible choices are: forward.
+            The sampling method to use. Possible choices are: forward, path, junction.
 
         """
 
         if method == "forward":
-            sampler = (sample for sample, _ in self._forward_sample(init))
+            if init:
+                sampler = (sample for sample, _ in self._forward_sample(init))
+            else:
+                sampler = self._forward_sample_fast()
+
+        elif method == "path":
+            sampler = self._path_sampler.iter_samples(self._rng, init)
+
+        elif method == "junction":
+            sampler = self._junction_sampler.iter_samples(self._rng, init)
 
         else:
-            raise ValueError("Unknown method, must be one of: forward")
+            raise ValueError("Unknown method, must be one of: forward, path, junction")
 
         if n > 1:
             return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
