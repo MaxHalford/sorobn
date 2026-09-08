@@ -18,7 +18,7 @@ def alarm(**kwargs) -> BayesNet:
 
     >>> bn = sorobn.examples.alarm()
 
-    >>> bn.query('John calls', 'Mary calls', event={'Burglary': True, 'Earthquake': False})
+    >>> bn.distribution('John calls', 'Mary calls', given={'Burglary': True, 'Earthquake': False})
     John calls  Mary calls
     False       False         0.08463
                 True          0.06637
@@ -88,7 +88,7 @@ def asia(**kwargs) -> BayesNet:
 
     >>> bn = sorobn.examples.asia()
 
-    >>> bn.query('Lung cancer', event={'Visit to Asia': True, 'Smoker': False})
+    >>> bn.distribution('Lung cancer', given={'Visit to Asia': True, 'Smoker': False})
     Lung cancer
     False    0.99
     True     0.01
@@ -187,7 +187,7 @@ def sprinkler(**kwargs) -> BayesNet:
 
     >>> bn = sorobn.examples.sprinkler()
 
-    >>> bn.query('Rain', event={'Sprinkler': True})
+    >>> bn.distribution('Rain', given={'Sprinkler': True})
     Rain
     False    0.7
     True     0.3
@@ -261,7 +261,7 @@ def grades(**kwargs):
     >>> bn.parents
     {'Grade': ['Difficulty', 'Intelligence'], 'SAT': ['Intelligence'], 'Letter': ['Grade']}
 
-    >>> bn.query('Letter', 'SAT', event={'Intelligence': 'Smart'})
+    >>> bn.distribution('Letter', 'SAT', given={'Intelligence': 'Smart'})
     Letter  SAT
     Strong  Failure    0.153544
             Success    0.614176

@@ -2,6 +2,8 @@ import inspect
 
 import streamlit as st
 
+import sorobn
+
 """
 # 🦔 sorobn
 
@@ -28,14 +30,14 @@ cpt
 ## Inference
 """
 
-query_vars = st.multiselect("Query variables", bn.nodes, default=bn.nodes[:1])
+target_vars = st.multiselect("Target variables", bn.nodes, default=bn.nodes[:1])
 
-events_vars = st.multiselect("Event variables", bn.nodes, default=bn.nodes[1:2])
+given_vars = st.multiselect("Evidence variables", bn.nodes, default=bn.nodes[1:2])
 
-if query_vars:
+if target_vars:
     """Posterior"""
-    answer = bn.query(
-        *query_vars, event={var: True for var in events_vars}, algorithm="exact"
+    answer = bn.distribution(
+        *target_vars, given={var: True for var in given_vars}, algorithm="exact"
     )
     answer = answer.to_frame().reset_index()
     answer

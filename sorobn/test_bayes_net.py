@@ -63,16 +63,16 @@ def check_Ps(bn):
         assert P.sum() == 1
 
 
-def check_query(bn):
-    """Checks that the query function works for every algorithm."""
+def check_distribution(bn):
+    """Checks that the distribution method works for every algorithm."""
 
     fjd = bn.full_joint_dist()
-    event = dict(zip(fjd.index.names, fjd.index[0]))
-    query = random.choice(list(event))
-    del event[query]
+    given = dict(zip(fjd.index.names, fjd.index[0]))
+    variable = random.choice(list(given))
+    del given[variable]
 
     for algorithm in ("exact", "gibbs", "likelihood", "rejection"):
-        bn.query(query, event=event, algorithm=algorithm)
+        bn.distribution(variable, given=given, algorithm=algorithm)
 
 
 def naive():
@@ -102,7 +102,7 @@ def naive():
             check_sample_one,
             check_full_joint_dist,
             check_Ps,
-            check_query,
+            check_distribution,
         )
     ],
 )
@@ -131,21 +131,21 @@ def test_indep_vars():
        3    0.20
     Name: P(A, B), dtype: float64
 
-    >>> bn.query('A', event={'B': 1})
+    >>> bn.distribution('A', given={'B': 1})
     A
     1    0.2
     2    0.3
     3    0.5
     Name: P(A), dtype: float64
 
-    >>> bn.query('A', event={'B': 2})
+    >>> bn.distribution('A', given={'B': 2})
     A
     1    0.2
     2    0.3
     3    0.5
     Name: P(A), dtype: float64
 
-    >>> bn.query('A', event={'B': 3})
+    >>> bn.distribution('A', given={'B': 3})
     A
     1    0.2
     2    0.3
@@ -189,7 +189,7 @@ def test_cpt_with_index_names():
     bn.prepare()
 
     pd.testing.assert_series_equal(
-        bn.query("C", event={"B": False, "A": True}),
+        bn.distribution("C", given={"B": False, "A": True}),
         pd.Series([0.5, 0.5], name="P(C)", index=pd.Index([False, True], name="C")),
     )
 
@@ -221,7 +221,7 @@ def test_cpt_dataframe():
     assert P.groupby(["A", "B"]).sum().eq(1).all()
 
     pd.testing.assert_series_equal(
-        bn.query("C", event={"A": True, "B": False}),
+        bn.distribution("C", given={"A": True, "B": False}),
         pd.Series([0.5, 0.5], name="P(C)", index=pd.Index([False, True], name="C")),
     )
 
@@ -307,7 +307,7 @@ def test_cpt_dataframe_with_string_values():
     )
     bn.prepare()
 
-    result = bn.query("Mood", event={"Weather": "Sunny"})
+    result = bn.distribution("Mood", given={"Weather": "Sunny"})
     assert math.isclose(result["Happy"], 0.9)
     assert math.isclose(result["Sad"], 0.1)
 
@@ -354,12 +354,12 @@ def test_conditional_reversal():
     bn.fit(X)
 
     # P(B | A=True, C=True) should be deterministic: B=True
-    P = bn._conditional("B", event={"A": True, "C": True})
+    P = bn._conditional("B", given={"A": True, "C": True})
     assert math.isclose(P[True], 1.0)
     assert False not in P.index or math.isclose(P[False], 0.0)
 
     # P(B | A=False, C=False) should be deterministic: B=False
-    P = bn._conditional("B", event={"A": False, "C": False})
+    P = bn._conditional("B", given={"A": False, "C": False})
     assert math.isclose(P[False], 1.0)
     assert True not in P.index or math.isclose(P[True], 0.0)
 
@@ -381,14 +381,14 @@ def test_conditional_marginalizes_hidden():
 
     # Without considering D, P(C|B=1) would be 0.5/0.5.
     # But D's CPD constrains (A=1,C=2) to be impossible, so P(C=1|A=1,B=1) = 1
-    P = bn._conditional("C", event={"A": 1, "B": 1})
+    P = bn._conditional("C", given={"A": 1, "B": 1})
     assert math.isclose(P[1], 1.0)
 
 
 def test_conditional_no_evidence():
     """Test that _conditional with no event returns the marginal."""
     bn = sorobn.examples.sprinkler()
-    P = bn._conditional("Cloudy", event={})
+    P = bn._conditional("Cloudy", given={})
     assert math.isclose(P[True], 0.5)
     assert math.isclose(P[False], 0.5)
 

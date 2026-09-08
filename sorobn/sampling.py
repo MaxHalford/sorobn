@@ -156,11 +156,11 @@ def _compile_conditional(cond, conditioning_vars, rng):
         n_cond = len(conditioning_vars)
         # Group by conditioning levels (use scalar level for single variable)
         level = list(range(n_cond)) if n_cond > 1 else 0
-        groups = cond.groupby(level=level)
+        groups = cond.groupby(level=level, observed=True, dropna=False)
         for key, group in groups:
             if not isinstance(key, tuple):
                 key = (key,)
-            # Drop conditioning levels to get just query values
+            # Drop conditioning levels to get just target values
             drop = list(range(n_cond)) if n_cond > 1 else 0
             vals_idx = group.index.droplevel(drop)
             values = vals_idx.tolist()
@@ -176,21 +176,23 @@ def _compile_conditional(cond, conditioning_vars, rng):
     return lookup
 
 
-def _normalize_conditional(joint, conditioning_vars, query_vars):
-    """Normalize a joint into a conditional P(query | conditioning).
+def _normalize_conditional(joint, conditioning_vars, target_vars):
+    """Normalize a joint into a conditional P(targets | conditioning).
 
-    The result has index levels [*conditioning_vars, *query_vars] and sums to 1
+    The result has index levels [*conditioning_vars, *target_vars] and sums to 1
     for each conditioning combination, making it compatible with CDTAccessor's
     cached __getitem__ and Vose sampler.
 
     """
     if conditioning_vars:
-        level_order = list(conditioning_vars) + list(query_vars)
+        level_order = list(conditioning_vars) + list(target_vars)
         if isinstance(joint.index, pd.MultiIndex):
             joint = joint.reorder_levels(level_order)
         joint = joint.sort_index()
         # Normalize: divide by sum within each conditioning group
-        normalizer = joint.groupby(level=list(conditioning_vars)).transform("sum")
+        normalizer = joint.groupby(
+            level=list(conditioning_vars), observed=True, dropna=False
+        ).transform("sum")
         cond = joint / normalizer
         # Drop entries where normalizer was 0 (impossible conditioning combos)
         cond = cond[cond.notna() & (cond > 0)]

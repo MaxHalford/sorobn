@@ -20,14 +20,15 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [✍️ Manual structures](#️-manual-structures)
   - [🎲 Random sampling](#-random-sampling)
   - [🔮 Probabilistic inference](#-probabilistic-inference)
+  - [🔎 Predicates and selectivity estimation](#-predicates-and-selectivity-estimation)
   - [❓ Missing value imputation](#-missing-value-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
   - [🧮 Parameter estimation](#-parameter-estimation)
+  - [🔢 Support for continuous variables](#-support-for-continuous-variables)
   - [🧱 Structure learning](#-structure-learning)
     - [🌳 Chow-Liu trees](#-chow-liu-trees)
   - [👀 Visualization](#-visualization)
   - [👁️ Graphical user interface](#️-graphical-user-interface)
-  - [🔢 Support for continuous variables](#-support-for-continuous-variables)
 - [Toy networks](#toy-networks)
 - [Development](#development)
 - [License](#license)
@@ -218,11 +219,11 @@ A Bayesian network is a [generative model](https://www.wikiwand.com/en/Generativ
 
 > What is the likelihood of there being a burglary if both John and Mary call?
 
-This question can be answered by using the `query` method, which returns the probability distribution for the possible outcomes. Said otherwise, the `query` method can be used to look at a query variable's distribution conditioned on a given event. This can be denoted as `P(query | event)`.
+The `distribution(*variables, given=...)` method returns the joint probability distribution of the requested variables, conditioned on the supplied evidence: `P(variables | given)`. Omit `given` for an unconditional distribution.
 
 
 ```python
->>> bn.query('Burglary', event={'Mary calls': True, 'John calls': True})
+>>> bn.distribution('Burglary', given={'Mary calls': True, 'John calls': True})
 Burglary
 False    0.715828
 True     0.284172
@@ -230,12 +231,12 @@ Name: P(Burglary), dtype: float64
 
 ```
 
-We can also answer questions that involve multiple query variables, for instance:
+We can also request a distribution over multiple variables, for instance:
 
 > What are the chances that John and Mary call if an earthquake happens?
 
 ```python
->>> bn.query('John calls', 'Mary calls', event={'Earthquake': True})
+>>> bn.distribution('John calls', 'Mary calls', given={'Earthquake': True})
 John calls  Mary calls
 False       False         0.675854
             True          0.027085
@@ -248,9 +249,9 @@ Name: P(John calls, Mary calls), dtype: float64
 By default, the answer is found via an exact inference procedure. For small networks this isn't very expensive to perform. However, for larger networks, you might want to prefer using [approximate inference](https://www.wikiwand.com/en/Approximate_inference). The latter is a class of methods that randomly sample the network and return an estimate of the answer. The quality of the estimate increases with the number of iterations that are performed. For instance, you can use [Gibbs sampling](https://www.wikiwand.com/en/Gibbs_sampling):
 
 ```python
->>> bn.query(
+>>> bn.distribution(
 ...     'Burglary',
-...     event={'Mary calls': True, 'John calls': True},
+...     given={'Mary calls': True, 'John calls': True},
 ...     algorithm='gibbs',
 ...     n_iterations=1000
 ... )  # doctest: +SKIP
@@ -269,6 +270,68 @@ The supported inference methods are:
 - `rejection` for [rejection sampling](https://www.wikiwand.com/en/Rejection_sampling).
 
 As with random sampling, randomness is controlled during `BayesNet` initialization, via the `seed` parameter.
+
+### 🔎 Predicates and selectivity estimation
+
+`probability(event, given=...)` returns a scalar probability, whereas `distribution(*variables, given=...)` returns a posterior distribution as a `pd.Series`. Both accept predicates as well as ordinary values:
+
+```python
+>>> movies = pd.DataFrame({
+...     'title': ['Star Wars', 'Star Trek', 'Alien', None],
+...     'year': [1977, 2009, 1979, 2000],
+... })
+>>> movie_bn = sorobn.BayesNet(('title', 'year')).fit(movies)
+
+# P(title LIKE 'Star%')
+>>> movie_bn.probability({'title': sorobn.Like('Star%')})
+0.5
+
+# Dictionary entries are combined with AND.
+>>> movie_bn.probability({'title': sorobn.Like('Star%'), 'year': sorobn.Ge(2000)})
+0.25
+
+# Conditional probability: P(year >= 2000 | title LIKE 'Star%').
+>>> movie_bn.probability({'year': sorobn.Ge(2000)}, given={'title': sorobn.Like('Star%')})
+0.5
+
+# A posterior distribution over years, restricted by a title predicate.
+>>> movie_bn.distribution('year', given={'title': sorobn.Glob('Star*')})
+year
+1977    0.5
+2009    0.5
+Name: P(year), dtype: float64
+
+# Convert filter selectivity into an estimated number of rows.
+>>> len(movies) * movie_bn.probability({'title': sorobn.Like('Star%')})
+2.0
+
+```
+
+| Predicate | Meaning |
+| --- | --- |
+| `Eq(value)` or an ordinary value | Equality |
+| `Ne(value)` | Inequality |
+| `Lt(value)`, `Le(value)`, `Gt(value)`, `Ge(value)` | Numeric or ordered comparisons |
+| `Between(lower, upper)` | Inclusive range |
+| `In(values)` | Membership |
+| `Like('Star%')` | SQL LIKE: `%` matches any string, `_` matches one character |
+| `Glob('Star*')` | Full-string, case-sensitive glob matching |
+| `Regex(r'^Star')` | Python regular-expression search |
+| `IsNull()`, `IsNotNull()` | Missing and non-missing values |
+
+Use `&`, `|`, and `~` for AND, OR, and NOT on the **same variable**:
+
+```python
+>>> movie_bn.probability({'year': sorobn.Ge(1970) & sorobn.Lt(1980)})
+0.5
+>>> movie_bn.probability({'title': sorobn.Eq('Alien') | sorobn.Like('Star%')})
+0.75
+>>> movie_bn.probability({'title': ~sorobn.In(['Alien', 'Star Trek'])})
+0.25
+>>> movie_bn.probability({'title': sorobn.IsNull()})
+0.25
+
+```
 
 ### ❓ Missing value imputation
 
@@ -314,7 +377,7 @@ np.float64(0.936742...)
 
 ```
 
-In other words, `predict_proba` computes `P(event)`, whereas the `query` method computes `P(query | event)`. You may also estimate the likelihood for a partial event. The probabilities for the unobserved variables will be summed out.
+In other words, `predict_proba` computes `P(event)`, whereas `distribution` computes `P(variables | given)`. You may also estimate the likelihood for a partial event. The probabilities for the unobserved variables will be summed out.
 
 ```py
 >>> event = {'Alarm': True, 'Burglary': False}
@@ -377,6 +440,65 @@ If you want to update an already existing Bayesian networks with new observation
 
 The same result will be obtained whether you use `fit` once or `partial_fit` multiple times in succession.
 
+### 🔢 Support for continuous variables
+
+Continuous variables are supported through discretization. Configure a `Discretizer` per variable, then fit the network on raw data. The network learns ordinary discrete tables over pandas interval categories.
+
+| Configuration | Bin scheme |
+| --- | --- |
+| `Discretizer(n_bins=10, strategy='uniform')` | Equal-width bins between the observed minimum and maximum |
+| `Discretizer(n_bins=10, strategy='quantile')` | Approximately equal-frequency bins (the default) |
+| `Discretizer(edges=[0, 10, 50, 100])` | Explicit edges; three bins in this example |
+
+Quantile binning removes duplicate edges, so repeated values can produce fewer than `n_bins` bins. Explicit edges must be finite, strictly increasing, and cover the data. Bins include their left endpoint; the final bin also includes its right endpoint.
+
+```python
+>>> from sorobn import Discretizer
+
+>>> measurements = pd.DataFrame({'amount': [0., 5., 10., 20.]})
+>>> amount_bn = sorobn.BayesNet(
+...     'amount',
+...     discretizers={'amount': Discretizer(n_bins=2, strategy='uniform')},
+... ).fit(measurements)
+>>> amount_bn.discretizers['amount'].edges_.tolist()
+[0.0, 10.0, 20.0]
+
+# Transformed columns use pandas' native ordered CategoricalDtype.
+>>> binned_amount = amount_bn.discretizers['amount'].transform(measurements['amount'])
+>>> binned_amount.cat.ordered
+True
+>>> binned_amount.cat.categories.tolist()
+[Interval(0.0, 10.0, closed='left'), Interval(10.0, 20.0, closed='both')]
+>>> binned_amount.cat.codes.tolist()
+[0, 0, 1, 1]
+>>> amount_bn.distribution('amount')
+amount
+[0.0, 10.0)     0.5
+[10.0, 20.0]    0.5
+Name: P(amount), dtype: float64
+
+# The interval covers half of each bin, selecting half the total mass.
+>>> amount_bn.probability({'amount': sorobn.Between(5, 15)})
+0.5
+>>> amount_bn.probability({'amount': sorobn.Lt(5)})
+0.25
+
+# Intersect constraints before interpolating, including target and evidence.
+>>> amount_bn.probability(
+...     {'amount': sorobn.Between(2, 8)}, given={'amount': sorobn.Between(0, 5)}
+... )
+0.6
+
+```
+
+Range queries assume **uniform density within each bin**, equivalent to linear interpolation of the cumulative distribution. A range cutting through a bin contributes the fraction of its width covered. These fractional weights are applied once per variable during discrete inference. The approximation does not recover variation or dependencies within a bin.
+
+Equality to one continuous value has zero probability under this model, except for a column fitted as a constant point mass. For numeric categories such as years or IDs, leave the variable discrete when equality frequencies matter. Nulls remain separate from numeric bins. Queries outside the fitted range have zero mass there.
+
+Each transformed cell contains a native `pd.Interval` value, exposing its `.left`, `.right`, and `.closed` properties. Pandas stores these intervals once in `.cat.categories` and uses compact integer codes per row. Empty bins remain in the categories; missing values use pandas' missing code `-1`. The ordered categorical dtype supports the final bin's inclusive right edge without changing or rounding any boundary.
+
+`distribution()` returns probabilities indexed by interval categories for discretized targets, and `sample()` returns interval values, with categorical columns when returning a DataFrame. `probability()` interprets predicates in the original numeric units. Supplied discretizers and training data are copied. `fit()` relearns bin boundaries; `partial_fit()` fixes them after the first batch and rejects out-of-range values. Use explicit edges when the domain is known in advance.
+
 ### 🧱 Structure learning
 
 #### 🌳 Chow-Liu trees
@@ -389,6 +511,41 @@ A Chow-Liu tree is a tree structure that represents a factorised distribution wi
 >>> bn = sorobn.BayesNet(*structure)
 
 ```
+
+For continuous columns, discretize a **copy** of the data before learning the structure. Then fit the network on the **original raw data**, passing the same discretization schemes. Here is a complete example:
+
+```python
+>>> import pandas as pd
+>>> import sorobn
+
+# Keep the observations in their original units.
+>>> observations = pd.DataFrame({
+...     'amount': [0., 1., 9., 10.],
+...     'kind': ['small', 'small', 'large', 'large'],
+... })
+>>> schemes = {'amount': sorobn.Discretizer(n_bins=2, strategy='quantile')}
+
+# Structure learning operates on discrete states, including interval categories.
+>>> binned = observations.copy()
+>>> for column, scheme in schemes.items():
+...     binned[column] = scheme.fit_transform(observations[column])
+>>> edges = sorobn.structure.chow_liu(binned, root='kind')
+>>> edges
+[('kind', 'amount')]
+
+# Parameter fitting takes RAW data: BayesNet applies the schemes itself.
+>>> learned_bn = sorobn.BayesNet(*edges, discretizers=schemes).fit(observations)
+
+# Predicates still use the original numeric units.
+>>> learned_bn.probability({'amount': sorobn.Lt(5)}, given={'kind': 'small'})
+1.0
+
+```
+
+`chow_liu` only sees discrete data; it does not fit discretizers. `BayesNet.fit` refits copies of the supplied schemes. Using the **same schemes and the same raw training data** produces the same boundaries deterministically. Pass raw observations to `BayesNet.fit`. Already transformed interval categories cannot be discretized again.
+
+To choose fixed boundaries explicitly, use `sorobn.Discretizer(edges=[...])` in `schemes`. The rest of the workflow is unchanged. Columns absent from `schemes` stay discrete. More bins retain more numeric detail but increase the size of the conditional probability tables.
+
 
 ### 👀 Visualization
 
@@ -428,14 +585,6 @@ $ sorobn
 This will launch a `streamlit` interface where you can play around with the examples that `sorobn` provides. You can see a running instance of it in [this Streamlit app](https://sorobn.streamlit.app/).
 
 An obvious next step would be to allow users to run this with their own Bayesian networks. Then again, using `streamlit` is so easy that you might as well do this yourself.
-
-### 🔢 Support for continuous variables
-
-Bayesian networks that handle both discrete and continuous are said to be *hybrid*. There are two approaches to deal with continuous variables. The first approach is to use [parametric distributions](https://www.wikiwand.com/en/Parametric_statistics) within nodes that pertain to a continuous variable. This has two disadvantages. First, it is complex because there are different cases to handle: a discrete variable conditioned by a continuous one, a continuous variable conditioned by a discrete one, or combinations of the former with the latter. Secondly, such an approach requires having to pick a parametric distribution for each variable. Although there are methods to automate this choice for you, they are expensive and are far from being foolproof.
-
-The second approach is to simply discretize the continuous variables. Although this might seem naive, it is generally a good enough approach and definitely makes things simpler implementation-wise. There are many ways to go about discretising a continuous attribute. For instance, you can apply a [quantile-based discretization function](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.qcut.html). You could also round each number to its closest integer. In some cases you might be able to apply a manual rule. For instance, you can convert a numeric temperature to "cold", "mild", and "hot".
-
-To summarize, we prefer to give the user the flexibility to discretize the variables by herself. Indeed, most of the time the best procedure depends on the problem at hand and cannot be automated adequately.
 
 ## Toy networks
 

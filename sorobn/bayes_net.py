@@ -1,4 +1,5 @@
 import collections
+import copy
 import functools
 import graphlib
 import itertools
@@ -8,6 +9,9 @@ import typing
 import numpy as np
 import pandas as pd
 import vose
+
+from .discretization import Discretizer
+from .predicates import Predicate, as_predicate
 
 __all__ = ["BayesNet"]
 
@@ -100,7 +104,7 @@ class CDTAccessor:
         nodes = list(self.series.index.names)
         for var in variables:
             nodes.remove(var)
-        return self.series.groupby(nodes).sum()
+        return self.series.groupby(nodes, dropna=False, observed=True).sum()
 
 
 def pointwise_mul_two(left: pd.Series, right: pd.Series):
@@ -237,6 +241,26 @@ def pointwise_mul_two(left: pd.Series, right: pd.Series):
         )
         return cart.stack(list(range(cart.columns.nlevels)), future_stack=True)
 
+    # Index.join can lose null category codes when broadcasting a simple index
+    # onto a MultiIndex. Column merges preserve both null states and categories.
+    shared = [name for name in left.index.names if name in right.index.names]
+    if any(
+        factor.index.get_level_values(name).isna().any()
+        for factor in (left, right) for name in shared
+    ):
+        left_value, right_value = object(), object()
+        merged = left.rename(left_value).reset_index().merge(
+            right.rename(right_value).reset_index(), on=shared, how="inner", sort=False
+        )
+        names = list(left.index.names) + [
+            name for name in right.index.names if name not in left.index.names
+        ]
+        merged = merged.set_index(names)
+        return pd.Series(
+            merged[left_value].to_numpy() * merged[right_value].to_numpy(),
+            index=merged.index,
+        )
+
     (
         index,
         l_idx,
@@ -275,6 +299,10 @@ class BayesNet:
     seed
         The seed for the random number generator used to generate artificial samples.
 
+    discretizers
+        Optional mapping from numeric variable names to Discretizer objects. Each
+        object is copied, fitted on raw data, and used to interpolate range queries.
+
     Attributes
     ----------
     nodes (list)
@@ -283,7 +311,10 @@ class BayesNet:
 
     """
 
-    def __init__(self, *structure, prior_count: int = None, seed: int = None):
+    def __init__(
+        self, *structure, prior_count: int = None, seed: int = None,
+        discretizers: dict[str, Discretizer] = None,
+    ):
         self.prior_count = prior_count
         self.seed = seed
         self._rng = random.Random(seed)
@@ -320,6 +351,13 @@ class BayesNet:
         for node in sorted({*self.parents.keys(), *self.children.keys(), *nodes}):
             ts.add(node, *self.parents.get(node, []))
         self.nodes = list(ts.static_order())
+
+        self.discretizers = copy.deepcopy(discretizers or {})
+        for node, discretizer in self.discretizers.items():
+            if node not in self.nodes:
+                raise ValueError(f"Unknown discretized variable: {node!r}")
+            if not isinstance(discretizer, Discretizer):
+                raise TypeError("discretizers must map variable names to Discretizer objects")
 
         self.P = {}
         self._P_sizes = {}
@@ -466,25 +504,63 @@ class BayesNet:
         """
 
         fjd = pointwise_mul(self.P.values(), keep_zeros=keep_zeros)
-        fjd = fjd.reorder_levels(sorted(fjd.index.names))
+        if isinstance(fjd.index, pd.MultiIndex):
+            fjd = fjd.reorder_levels(sorted(fjd.index.names))
         fjd = fjd.sort_index()
         fjd.name = f"P({', '.join(fjd.index.names)})"
         return fjd / fjd.sum()
 
+    def _restore_bin_categories(self, table):
+        """Keep fitted categories when pandas alignment casts an index to object."""
+        if not any(name in self.discretizers for name in table.index.names):
+            return table
+        arrays = []
+        for name in table.index.names:
+            values = table.index.get_level_values(name)
+            if name in self.discretizers:
+                values = pd.CategoricalIndex(values, dtype=self.discretizers[name].dtype_)
+            arrays.append(values)
+        table.index = (
+            pd.MultiIndex.from_arrays(arrays, names=table.index.names)
+            if isinstance(table.index, pd.MultiIndex) else arrays[0]
+        )
+        return table
+
     def partial_fit(self, X: pd.DataFrame):
-        """Update the parameters of each conditional distribution."""
+        """Update conditional distributions, keeping existing bin boundaries fixed.
+
+        Unfitted discretizers learn boundaries from the first batch. Later batches
+        must lie within those boundaries; use explicit edges for a known domain.
+        """
+
+        # Transform a copy: the caller's raw values and configuration stay intact.
+        X = X.copy()
+        discretizers = copy.deepcopy(self.discretizers)
+        for node, discretizer in discretizers.items():
+            if discretizer.edges_ is None:
+                discretizer.fit(X[node])
+            X[node] = discretizer.transform(X[node])
+        # Use a single null representation so root tables and grouped child tables
+        # agree when their indexes are joined (None and NaN do not always align).
+        for node in self.nodes:
+            if X[node].isna().any() and not isinstance(X[node].dtype, pd.CategoricalDtype):
+                X[node] = X[node].astype(object).where(X[node].notna(), np.nan)
+        self.discretizers = discretizers
 
         # Compute the conditional distribution for each node that has parents
         for child, parents in self.parents.items():
             # If a P already exists, then we update it incrementally...
             if child in self.P:
-                old_counts = self.P[child] * self._P_sizes[child]
-                new_counts = X.groupby(parents + [child]).size()
+                parent_sizes = self._P_sizes[child].reindex(
+                    self.P[child].index.droplevel(child)
+                )
+                old_counts = self.P[child] * parent_sizes.to_numpy()
+                new_counts = X.groupby(parents + [child], dropna=False, observed=True).size()
                 counts = old_counts.add(new_counts, fill_value=0)
 
             # ... else we compute it from scratch
             else:
-                counts = X.groupby(parents + [child]).size()
+                counts = X.groupby(parents + [child], dropna=False, observed=True).size()
                 if self.prior_count:
                     combos = itertools.product(
                         *[X[var].unique() for var in parents + [child]]
@@ -495,15 +571,17 @@ class BayesNet:
                     counts = counts.add(prior, fill_value=0)
 
             # Normalize
-            self._P_sizes[child] = counts.groupby(parents).sum()
-            self.P[child] = counts / self._P_sizes[child]
+            counts = self._restore_bin_categories(counts)
+            grouped = counts.groupby(parents, dropna=False, observed=True)
+            self._P_sizes[child] = grouped.sum()
+            self.P[child] = counts / grouped.transform("sum")
 
         # Compute the distribution for each root
         for root in self.roots:
             # Incremental update
             if root in self.P:
                 old_counts = self.P[root] * self._P_sizes[root]
-                new_counts = X[root].value_counts()
+                new_counts = X[root].value_counts(dropna=False)
                 counts = old_counts.add(new_counts, fill_value=0)
                 self._P_sizes[root] += len(X)
                 self.P[root] = counts / self._P_sizes[root]
@@ -511,17 +589,22 @@ class BayesNet:
             # From scratch
             else:
                 self._P_sizes[root] = len(X)
-                self.P[root] = X[root].value_counts(normalize=True)
+                self.P[root] = X[root].value_counts(normalize=True, dropna=False)
 
+        for node in self.P:
+            self.P[node] = self._restore_bin_categories(self.P[node])
         self.prepare()
         self._path_sampler.invalidate()
         self._junction_sampler.invalidate()
         return self
 
     def fit(self, X: pd.DataFrame):
-        """Find the values of each conditional distribution."""
+        """Fit discretizers on raw data, then learn the discrete conditional tables."""
         self.P = {}
         self._P_sizes = {}
+        for discretizer in self.discretizers.values():
+            discretizer.edges_ = None
+            discretizer.dtype_ = None
         return self.partial_fit(X)
 
     def _forward_sample_fast(self) -> typing.Iterator[dict]:
@@ -612,8 +695,8 @@ class BayesNet:
                         stack.append(nb)
         return order
 
-    def _conditional(self, node, event):
-        """Compute P(node | event) considering all CPDs in the network.
+    def _conditional(self, node, given):
+        """Compute P(node | given) considering all CPDs in the network.
 
         Unlike _variable_elimination (which only uses ancestor CPDs), this includes
         descendant CPDs too. This is necessary because descendant CPDs can constrain
@@ -624,13 +707,13 @@ class BayesNet:
         factors = []
         for n in self.nodes:
             factor = self.P[n].copy()
-            for var, val in event.items():
+            for var, val in given.items():
                 if var in factor.index.names:
                     factor = factor[factor.index.get_level_values(var) == val]
             if len(factor) > 0:
                 factors.append(factor)
 
-        hidden = [n for n in self.nodes if n != node and n not in event]
+        hidden = [n for n in self.nodes if n != node and n not in given]
         for h in hidden:
             relevant = [
                 factors.pop(i)
@@ -683,17 +766,20 @@ class BayesNet:
             raise ValueError("Unknown method, must be one of: forward, path, junction")
 
         if n > 1:
-            return pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
+            samples = pd.DataFrame(next(sampler) for _ in range(n)).sort_index(
                 axis="columns"
             )
+            for node, discretizer in self.discretizers.items():
+                samples[node] = samples[node].astype(discretizer.dtype_)
+            return samples
         return pd.Series(next(sampler))
 
-    def _rejection_sampling(self, *query, event, n_iterations):
-        """Answer a query using rejection sampling.
+    def _rejection_sampling(self, *variables, given, n_iterations):
+        """Estimate a distribution using rejection sampling.
 
         This is probably the easiest approximate inference method to understand. The idea is simply
-        to produce a random sample and keep it if it satisfies the specified event. The sample is
-        rejected if any part of the event is not consistent with the sample. The downside of this
+        to produce a random sample and keep it if it satisfies the given evidence. The sample is
+        rejected if any part of the evidence is not consistent with the sample. The downside of this
         method is that it can potentially reject many samples, and therefore requires a large `n`
         in order to produce reliable estimates.
 
@@ -705,8 +791,8 @@ class BayesNet:
 
         >>> bn = sorobn.examples.sprinkler(seed=42)
 
-        >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='rejection', n_iterations=100)  # doctest: +SKIP
+        >>> given = {'Sprinkler': True}
+        >>> bn.distribution('Rain', given=given, algorithm='rejection', n_iterations=100)  # doctest: +SKIP
         Rain
         False    0.730769
         True     0.269231
@@ -715,24 +801,24 @@ class BayesNet:
         """
 
         # We don't know many samples we won't reject, therefore we cannot preallocate arrays
-        samples = {var: [] for var in query}
+        samples = {var: [] for var in variables}
         sampler = (sample for sample, _ in self._forward_sample())
 
         for _ in range(n_iterations):
             sample = next(sampler)
 
-            # Reject if the sample is not consistent with the specified events
-            if any(sample[var] != val for var, val in event.items()):
+            # Reject if the sample is not consistent with the given evidence
+            if any(sample[var] != val for var, val in given.items()):
                 continue
 
-            for var in query:
+            for var in variables:
                 samples[var].append(sample[var])
 
         # Aggregate and normalize the obtained samples
         samples = pd.DataFrame(samples)
-        return samples.groupby(list(query)).size() / len(samples)
+        return samples.groupby(list(variables)).size() / len(samples)
 
-    def _llh_weighting(self, *query, event, n_iterations):
+    def _llh_weighting(self, *variables, given, n_iterations):
         """Likelihood weighting.
 
         Likelihood weighting is a particular instance of importance sampling. The idea is to
@@ -746,8 +832,8 @@ class BayesNet:
 
         >>> bn = sorobn.examples.sprinkler(seed=42)
 
-        >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='likelihood', n_iterations=500)  # doctest: +SKIP
+        >>> given = {'Sprinkler': True}
+        >>> bn.distribution('Rain', given=given, algorithm='likelihood', n_iterations=500)  # doctest: +SKIP
         Rain
         False    0.762228
         True     0.237772
@@ -755,33 +841,33 @@ class BayesNet:
 
         """
 
-        samples = {var: [None] * n_iterations for var in query}
+        samples = {var: [None] * n_iterations for var in variables}
         likelihoods = [None] * n_iterations
 
-        sampler = self._forward_sample(init=event)
+        sampler = self._forward_sample(init=given)
 
         for i in range(n_iterations):
-            # Sample by using the events as fixed values
+            # Sample by using the evidence as fixed values
             sample, likelihood = next(sampler)
 
             # Compute the likelihood of this sample
-            for var in query:
+            for var in variables:
                 samples[var][i] = sample[var]
             likelihoods[i] = likelihood
 
         # Now we aggregate the resulting samples according to their associated likelihoods
         results = pd.DataFrame({"likelihood": likelihoods, **samples})
-        results = results.groupby(list(query))["likelihood"].mean()
+        results = results.groupby(list(variables))["likelihood"].mean()
         results /= results.sum()
 
         return results
 
-    def _gibbs_sampling(self, *query, event, n_iterations):
+    def _gibbs_sampling(self, *variables, given, n_iterations):
         """Gibbs sampling.
 
         The mathematical details of why this works are quite involved, but the idea is quite
-        simple. We start with a random sample where the event variables are specified. Every
-        iteration, we pick a random variable that is not part of the event variables, and sample it
+        simple. We start with a random sample where the evidence variables are specified. Every
+        iteration, we pick a random variable that is not part of the evidence variables, and sample it
         randomly. The sampling is conditionned on the current state of the sample, which requires
         computing the conditional distribution of each variable with respect to it's Markov
         blanket. Every time a random value is sampled, we update the current state and record it.
@@ -794,8 +880,8 @@ class BayesNet:
 
         >>> bn = sorobn.examples.sprinkler(seed=42)
 
-        >>> event = {'Sprinkler': True}
-        >>> bn.query('Rain', event=event, algorithm='gibbs', n_iterations=500)  # doctest: +SKIP
+        >>> given = {'Sprinkler': True}
+        >>> bn.distribution('Rain', given=given, algorithm='gibbs', n_iterations=500)  # doctest: +SKIP
         Rain
         False    0.632
         True     0.368
@@ -804,13 +890,13 @@ class BayesNet:
         """
 
         # We start by computing the conditional distributions for each node that is not part of
-        # the event. Each relevant node is therefore conditioned on its Markov boundary. Refer to
+        # the evidence. Each relevant node is therefore conditioned on its Markov boundary. Refer to
         # equation 14.12 of Artificial Intelligence: A Modern Approach for more detail.
         posteriors = {}
         boundaries = {}
-        nonevents = sorted(set(self.nodes) - set(event))
+        unobserved = sorted(set(self.nodes) - set(given))
 
-        for node in nonevents:
+        for node in unobserved:
             post = pointwise_mul(
                 self.P[node] for node in [node, *self.children.get(node, [])]
             )
@@ -826,10 +912,10 @@ class BayesNet:
             boundaries[node] = boundary
 
         # Start with a random sample
-        state = self.sample(init=event)
+        state = self.sample(init=given)
 
-        samples = {var: [None] * n_iterations for var in query}
-        cycle = itertools.cycle(nonevents)  # arbitrary order, it doesn't matter
+        samples = {var: [None] * n_iterations for var in variables}
+        cycle = itertools.cycle(unobserved)  # arbitrary order, it doesn't matter
 
         for i in range(n_iterations):
             # Go to the next variable
@@ -843,14 +929,14 @@ class BayesNet:
             state[var] = P.cdt.sample(rng=self._rng)
 
             # Record the current state
-            for var in query:
+            for var in variables:
                 samples[var][i] = state[var]
 
         # Aggregate and normalize the obtained samples
         samples = pd.DataFrame(samples)
-        return samples.groupby(list(query)).size() / len(samples)
+        return samples.groupby(list(variables)).size() / len(samples)
 
-    def _variable_elimination(self, *query, event):
+    def _variable_elimination(self, *variables, given):
         """Variable elimination.
 
         See figure 14.11 of Artificial Intelligence: A Modern Approach for more detail.
@@ -862,7 +948,7 @@ class BayesNet:
 
         >>> bn = sorobn.examples.sprinkler()
 
-        >>> bn.query('Rain', event={'Sprinkler': True}, algorithm='exact')
+        >>> bn.distribution('Rain', given={'Sprinkler': True}, algorithm='exact')
         Rain
         False    0.7
         True     0.3
@@ -870,51 +956,128 @@ class BayesNet:
 
         """
 
-        # We start by determining which nodes can be discarded. We can remove any leaf node that is
-        # part of query variable(s) or the event variable(s). After a leaf node has been removed,
-        # there might be some more leaf nodes to be remove, etc. Said otherwise, we can ignore each
-        # node that isn't an ancestor of the query variable(s) or the event variable(s).
-        relevant = {*query, *event}
+        posterior = self._event_distribution(variables, given)
+        total = posterior.sum()
+        if total <= 0:
+            raise ValueError("Cannot condition on evidence with zero probability")
+        return posterior / total
+
+    def _event_distribution(self, variables, event):
+        """Unnormalized marginal with one likelihood factor per observed variable.
+
+        Eliminating every variable returns P(event), without constructing a full
+        joint table. A partially observed variable remains latent until summed out.
+        """
+        unknown = (set(variables) | set(event)) - set(self.P)
+        if unknown:
+            raise ValueError(f"Unknown or unfitted variables: {sorted(unknown)}")
+
+        def zero():
+            if not variables:
+                return 0.0
+            index = (
+                pd.Index([], name=variables[0]) if len(variables) == 1
+                else pd.MultiIndex.from_tuples([], names=variables)
+            )
+            return pd.Series([], index=index, dtype=float)
+
+        relevant = set(variables) | set(event)
         for node in list(relevant):
             relevant |= self.ancestors(node)
-        hidden = relevant - {*query, *event}
+
+        weights = {}
+        for node, value in event.items():
+            states = self.P[node].index.get_level_values(node).unique()
+            predicate = as_predicate(value)
+            if node in self.discretizers:
+                values = self.discretizers[node].weights(predicate, states)
+            else:
+                values = [float(predicate(state)) for state in states]
+            weights[node] = pd.Series(values, index=states)
 
         factors = []
-        for node in relevant:
+        for node in sorted(relevant):
             factor = self.P[node].copy()
-            # Filter each factor according to the event
-            for var, val in event.items():
-                if var in factor.index.names:
-                    factor = factor[factor.index.get_level_values(var) == val]
-
+            for var, likelihood in weights.items():
+                if var not in factor.index.names:
+                    continue
+                values = likelihood.reindex(factor.index.get_level_values(var)).to_numpy()
+                # Apply fractional weights only once; pruning zero states is safe
+                # in every factor containing the variable.
+                if var == node:
+                    factor *= values
+                factor = factor[values > 0]
+            factor = factor[factor > 0]
+            if factor.empty:
+                return zero()
             factors.append(factor)
 
-        # Sum-out the hidden variables from the factors in which they appear
-        for node in hidden:
-            prod = pointwise_mul(
-                factors.pop(i)
-                for i in reversed(range(len(factors)))
-                if node in factors[i].index.names
+        hidden = relevant - set(variables)
+        cardinalities = {
+            var: self.P[var].index.get_level_values(var).nunique(dropna=False)
+            for var in relevant
+        }
+        scalar = 1.0
+        while hidden:
+            # Prefer eliminations that create smaller tables. Tie-break by name for
+            # deterministic behavior independent of Python's hash seed.
+            def cost(node):
+                scope = {
+                    var for factor in factors if node in factor.index.names
+                    for var in factor.index.names
+                }
+                return (np.prod([
+                    cardinalities[var]
+                    for var in scope
+                ], dtype=object), node)
+
+            node = min(hidden, key=cost)
+            hidden.remove(node)
+            selected = [f for f in factors if node in f.index.names]
+            factors = [f for f in factors if node not in f.index.names]
+            product = pointwise_mul(selected)
+            if product.empty:
+                return zero()
+            remaining = [var for var in product.index.names if var != node]
+            if remaining:
+                factors.append(product.groupby(
+                    remaining, dropna=False, observed=True
+                ).sum())
+            else:
+                scalar *= product.sum()
+
+        if not variables:
+            return float(scalar)
+        return self._restore_bin_categories(scalar * pointwise_mul(factors))
+
+    def probability(self, event: dict, *, given: dict = None) -> float:
+        """Return P(event | given), using exact inference in the discrete model.
+
+        Dictionaries combine variable predicates with AND; ordinary values mean
+        equality. Use &, |, and ~ to combine predicates on the same variable.
+        Discretized ranges use uniform density within each bin. An impossible event
+        returns zero; conditioning on impossible evidence raises ValueError.
+        """
+        given = {} if given is None else given
+        denominator = self._event_distribution((), given)
+        if denominator <= 0:
+            raise ValueError("Cannot condition on evidence with zero probability")
+        combined = dict(given)
+        for node, predicate in event.items():
+            combined[node] = (
+                as_predicate(given[node]) & as_predicate(predicate)
+                if node in given else predicate
             )
-            prod = prod.cdt.sum_out(node)
-            factors.append(prod)
+        return float(self._event_distribution((), combined) / denominator)
 
-        # Pointwise multiply the rest of the factors and normalize the result
-        posterior = pointwise_mul(factors)
-        posterior = posterior / posterior.sum()
-        posterior.index = posterior.index.droplevel(
-            list(set(posterior.index.names) - set(query))
-        )
-        return posterior
-
-    def query(
+    def distribution(
         self,
-        *query: typing.Tuple[str],
-        event: dict,
+        *variables: str,
+        given: dict = None,
         algorithm="exact",
         n_iterations=100,
     ) -> pd.Series:
-        """Answer a probabilistic query.
+        """Return the joint distribution of variables conditional on given evidence.
 
         Exact inference is performed by default. However, this might be too slow depending on the
         graph structure. In that case, it is more suitable to use one of the approximate inference
@@ -924,10 +1087,13 @@ class BayesNet:
         Parameters
         ----------
 
-        query
+        variables
             The variables for which the posterior distribution is inferred.
-        event
-            The information on which to condition the answer. This can also called the "evidence".
+        given
+            Optional evidence: a dictionary of values or predicates. Entries are
+            combined with AND. Predicates and discretized evidence require exact
+            inference. A discretized target variable's posterior is indexed by
+            pandas Interval categories.
         algorithm
             Inference method to use. Possible choices are: exact, gibbs, likelihood, rejection.
         n_iterations
@@ -940,8 +1106,8 @@ class BayesNet:
 
         >>> bn = sorobn.examples.asia()
 
-        >>> event = {'Visit to Asia': True, 'Smoker': True}
-        >>> bn.query('Lung cancer', 'Tuberculosis', event=event)
+        >>> given = {'Visit to Asia': True, 'Smoker': True}
+        >>> bn.distribution('Lung cancer', 'Tuberculosis', given=given)
         Lung cancer  Tuberculosis
         False        False           0.855
                      True            0.045
@@ -951,27 +1117,35 @@ class BayesNet:
 
         """
 
-        if not query:
-            raise ValueError("At least one query variable has to be specified")
+        if not variables:
+            raise ValueError("At least one variable has to be specified")
 
-        for q in query:
-            if q in event:
-                raise ValueError("A query variable cannot be part of the event")
+        given = {} if given is None else given
+        if len(set(variables)) != len(variables):
+            raise ValueError("Target variables must be distinct")
+        if algorithm != "exact":
+            if any(isinstance(value, Predicate) for value in given.values()) or (
+                set(given) & set(self.discretizers)
+            ):
+                raise ValueError("Predicate and discretized evidence require algorithm='exact'")
+            for variable in variables:
+                if variable in given:
+                    raise ValueError("A target variable cannot be part of the evidence for sampling algorithms")
 
         if algorithm == "exact":
-            answer = self._variable_elimination(*query, event=event)
+            answer = self._variable_elimination(*variables, given=given)
 
         elif algorithm == "gibbs":
             answer = self._gibbs_sampling(
-                *query, event=event, n_iterations=n_iterations
+                *variables, given=given, n_iterations=n_iterations
             )
 
         elif algorithm == "likelihood":
-            answer = self._llh_weighting(*query, event=event, n_iterations=n_iterations)
+            answer = self._llh_weighting(*variables, given=given, n_iterations=n_iterations)
 
         elif algorithm == "rejection":
             answer = self._rejection_sampling(
-                *query, event=event, n_iterations=n_iterations
+                *variables, given=given, n_iterations=n_iterations
             )
 
         else:
@@ -980,15 +1154,15 @@ class BayesNet:
                 + "rejection"
             )
 
-        answer = answer.rename(f"P({', '.join(query)})")
+        answer = answer.rename(f"P({', '.join(variables)})")
 
-        # We sort the index levels if there are multiple query variables
+        # We sort the index levels if there are multiple target variables
         if isinstance(answer.index, pd.MultiIndex):
             answer = answer.reorder_levels(sorted(answer.index.names))
 
         return answer.sort_index()
 
-    def impute(self, sample: dict, **query_params) -> pd.Series:
+    def impute(self, sample: dict, **distribution_params) -> pd.Series:
         """Replace missing values with the most probable possibility.
 
         This method returns a fresh copy and does not modify the input.
@@ -998,28 +1172,28 @@ class BayesNet:
         sample
             The sample for which the missing values need replacing. The missing values are expected
             to be represented with `None`.
-        query_params
-            The rest of the keyword arguments for specifying what parameters to call the `query`
+        distribution_params
+            The rest of the keyword arguments for specifying what parameters to call the `distribution`
             method with.
 
         """
 
         # Determine which variables are missing and which ones are not
         missing = []
-        event = sample.copy()
+        given = sample.copy()
         for k, v in sample.items():
             if v is None:
                 missing.append(k)
-                del event[k]
+                del given[k]
 
         # Compute the likelihood of each possibility
-        posterior = self.query(*missing, event=event, **query_params)
+        posterior = self.distribution(*missing, given=given, **distribution_params)
 
         # Replace the missing values with the most likely values
         for k, v in zip(posterior.index.names, posterior.idxmax()):
-            event[k] = v
+            given[k] = v
 
-        return pd.Series(event)
+        return pd.Series(given)
 
     def graphviz(self):
         """Export to Graphviz.
@@ -1048,12 +1222,10 @@ class BayesNet:
     def predict_proba(self, X: typing.Union[dict, pd.DataFrame]):
         """Return likelihood estimates.
 
-        The probabilities are obtained by first computing the full joint distribution. Then, the
-        likelihood of a sample is retrieved by accessing the relevant row in the full joint
-        distribution.
-
-        This method is a stepping stone for other functionalities, such as computing the
-        log-likelihood. The latter can in turn be used for structure learning.
+        Each row is evaluated with variable elimination, summing out unobserved
+        variables. Dictionaries also accept predicates, as in probability().
+        Exact values on discretized continuous variables have zero probability
+        unless the variable was fitted as a constant point mass.
 
         Parameters
         ----------
@@ -1063,17 +1235,18 @@ class BayesNet:
         """
 
         if isinstance(X, dict):
-            return self.predict_proba(pd.DataFrame([X])).iloc[0]
-
-        fjd = self.full_joint_dist()
-
-        if unobserved := set(fjd.index.names) - set(X.columns):
-            fjd = fjd.droplevel(list(unobserved))
-            fjd = fjd.groupby(fjd.index.names).sum()
-
-        if len(fjd.index.names) > 1:
-            return fjd[pd.MultiIndex.from_frame(X[fjd.index.names])]
-        return fjd
+            return np.float64(self.probability(X))
+        columns = sorted(X.columns)
+        if not columns:
+            return pd.Series(1.0, index=X.index, name="P()")
+        index = (
+            pd.Index(X[columns[0]], name=columns[0]) if len(columns) == 1
+            else pd.MultiIndex.from_frame(X[columns])
+        )
+        return pd.Series(
+            [self.probability(row) for row in X.to_dict("records")],
+            index=index, name=f"P({', '.join(sorted(self.P))})", dtype=float,
+        )
 
     def predict_log_proba(self, X: typing.Union[dict, pd.DataFrame]):
         """Return log-likelihood estimates.

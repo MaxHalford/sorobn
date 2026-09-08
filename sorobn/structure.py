@@ -2,6 +2,7 @@ import collections
 import itertools
 
 import numpy as np
+import pandas as pd
 
 __all__ = ["chow_liu"]
 
@@ -19,6 +20,29 @@ def chow_liu(X, root=None):
     TODO: the current implementation uses Kruskal's algorithm to extract the MST. According to
         Wikipedia, faster algorithms exist for fully connected graphs.
 
+    Parameters
+    ----------
+    X
+        A nonempty DataFrame of discrete observations. Discretize continuous
+        columns before calling this function. Missing values are a separate state.
+    root
+        Root of the directed tree. Defaults to the first column.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> import sorobn
+    >>> data = pd.DataFrame({"amount": [0., 1., 9., 10.], "kind": [0, 0, 1, 1]})
+    >>> scheme = sorobn.Discretizer(n_bins=2, strategy="uniform")
+    >>> binned = data.copy()
+    >>> binned["amount"] = scheme.fit_transform(data["amount"])
+    >>> edges = sorobn.structure.chow_liu(binned, root="kind")
+    >>> edges
+    [('kind', 'amount')]
+    >>> bn = sorobn.BayesNet(*edges, discretizers={"amount": scheme}).fit(data)
+    >>> bn.probability({"amount": sorobn.Lt(5)}, given={"kind": 0})
+    1.0
+
     References
     ----------
 
@@ -28,15 +52,32 @@ def chow_liu(X, root=None):
 
     """
 
+    if X.empty:
+        raise ValueError("Structure learning requires nonempty data")
+    if not X.columns.is_unique:
+        raise ValueError("Column names must be unique")
+    if root is None:
+        root = X.columns[0]
+    if root not in X.columns:
+        raise ValueError(f"Unknown root variable: {root!r}")
+
+    X = X.copy()
+    # Match parameter learning: normalize null representations before aligning
+    # marginal and joint tables, and retain them when counting observations.
+    for node in X.columns:
+        if X[node].isna().any() and not isinstance(X[node].dtype, pd.CategoricalDtype):
+            X[node] = X[node].astype(object).where(X[node].notna(), np.nan)
+
     # Compute the mutual information between each pair of variables
-    marginals = {v: X[v].value_counts(normalize=True) for v in X.columns}
+    marginals = {v: X[v].value_counts(normalize=True, dropna=False) for v in X.columns}
     edge = collections.namedtuple("edge", ["u", "v", "mi"])
     mis = (
         edge(
             u,
             v,
             mutual_info(
-                puv=X.groupby([u, v]).size() / len(X), pu=marginals[u], pv=marginals[v]
+                puv=X.groupby([u, v], dropna=False, observed=True).size() / len(X),
+                pu=marginals[u], pv=marginals[v],
             ),
         )
         for u, v in itertools.combinations(sorted(X.columns), 2)
@@ -45,9 +86,6 @@ def chow_liu(X, root=None):
 
     # Extract the maximum spanning tree
     neighbors = kruskal(vertices=X.columns, edges=edges)
-
-    if root is None:
-        root = X.columns[0]
 
     return list(orient_tree(neighbors, root, visited=set()))
 
@@ -106,14 +144,16 @@ def kruskal(vertices, edges):
 
     ds = DisjointSet(*vertices)
     neighbors = collections.defaultdict(set)
+    n_edges = 0
 
     for u, v in edges:
         if ds.find(u) != ds.find(v):
             neighbors[u].add(v)
             neighbors[v].add(u)
             ds.union(ds.find(u), ds.find(v))
+            n_edges += 1
 
-        if len(neighbors) == len(vertices):
+        if n_edges == len(vertices) - 1:
             break
 
     return neighbors
@@ -122,6 +162,6 @@ def kruskal(vertices, edges):
 def orient_tree(neighbors, root, visited):
     """Return tree edges that originate from the given root."""
 
-    for neighbor in neighbors[root] - visited:
+    for neighbor in sorted(neighbors[root] - visited):
         yield root, neighbor
         yield from orient_tree(neighbors, root=neighbor, visited={root})
