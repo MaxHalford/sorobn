@@ -57,8 +57,23 @@ class Discretizer:
             ):
                 raise ValueError("edges must be finite and strictly increasing")
 
+    @staticmethod
+    def _as_numeric_series(values):
+        series = pd.Series(values)
+        dtype = series.dtype
+        if (
+            not pd.api.types.is_any_real_numeric_dtype(dtype)
+            and not series.isna().all()
+        ):
+            raise TypeError(
+                f"Discretizer requires a numeric column; got dtype {dtype!r}"
+            )
+        return series
+
     def fit(self, values):
-        values = pd.Series(values).to_numpy(dtype=float, na_value=np.nan)
+        values = self._as_numeric_series(values).to_numpy(
+            dtype=float, na_value=np.nan
+        )
         observed = values[~np.isnan(values)]
         if not np.isfinite(observed).all():
             raise ValueError("Discretization requires finite values or nulls")
@@ -94,7 +109,7 @@ class Discretizer:
         """
         if self.edges_ is None:
             raise ValueError("Fit the discretizer before transforming values")
-        series = pd.Series(values)
+        series = self._as_numeric_series(values)
         values = series.to_numpy(dtype=float, na_value=np.nan)
         missing = np.isnan(values)
         if (

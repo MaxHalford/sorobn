@@ -24,6 +24,7 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [❓ Missing value imputation](#-missing-value-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
   - [🧮 Parameter estimation](#-parameter-estimation)
+  - [🪣 High-cardinality variables](#-high-cardinality-variables)
   - [🔢 Support for continuous variables](#-support-for-continuous-variables)
   - [🧱 Structure learning](#-structure-learning)
     - [🌳 Chow-Liu trees](#-chow-liu-trees)
@@ -438,11 +439,61 @@ If you want to update an already existing Bayesian networks with new observation
 
 ```
 
-The same result will be obtained whether you use `fit` once or `partial_fit` multiple times in succession.
+For ordinary discrete variables, the same result is obtained whether you use `fit` once or `partial_fit` multiple times. Learned transformations are frozen after the first batch so that accumulated counts retain a stable meaning; the sections below describe this in more detail.
+
+### 🪣 High-cardinality variables
+
+In order to save space, rare categorical values can be grouped into a `sorobn.OTHER` state. This happens before the conditional probability tables are computed. Configure a `Compactor` for each variable where you wish to apply compaction:
+
+```python
+>>> observations = pd.DataFrame({
+...     'city': ['Paris', 'Paris', 'Paris', 'London', 'London', 'Lyon', 'Nice'],
+...     'bought': [True, True, False, False, True, True, False],
+... })
+>>> city_bn = sorobn.BayesNet(
+...     ('city', 'bought'),
+...     compactors={
+...         'city': sorobn.Compactor(max_categories=3),
+...     },
+... ).fit(observations)
+>>> city_bn.compactors['city'].frequent_values_
+('Paris', 'London')
+>>> city_bn.distribution('city')
+city
+Paris      0.428571
+London     0.285714
+<OTHER>    0.285714
+Name: P(city), dtype: float64
+
+```
+
+`max_categories` includes `OTHER`, so the example retains the two most frequent values and uses its third state for everything else. Frequency ties are resolved by first appearance. Alternatively, retain every value above an absolute count or a fraction of all observations:
+
+```python
+>>> sorobn.Compactor(min_frequency=10)   # At least 10 occurrences
+Compactor(min_frequency=10)
+>>> sorobn.Compactor(min_frequency=0.01) # At least 1% of rows
+Compactor(min_frequency=0.01)
+
+```
+
+Null values are kept separate from `OTHER`. They can therefore add one state beyond `max_categories`. Querying `sorobn.OTHER` selects the aggregate bucket. A query against original bucket members divides that aggregate probability according to the configured `disaggregation` rule:
+
+| Configuration | Probability assigned within `OTHER` |
+| --- | --- |
+| `disaggregation='uniform'` | Equal share for every distinct member (the default) |
+| `disaggregation='empirical'` | Proportional to each member's observed count |
+| `disaggregation='dirichlet', alpha=1` | Posterior mean under a symmetric Dirichlet prior |
+
+For the example above, `OTHER` contains `Lyon` twice and `Nice` once. Uniform disaggregation assigns each city half of the bucket probability; empirical disaggregation assigns them two thirds and one third. Dirichlet disaggregation uses `(count + alpha) / (total_count + alpha * n_members)`, interpolating between those results. Larger `alpha` pulls the shares toward uniform.
+
+The rule applies to arbitrary predicates: an `In`, pattern, ordering, or combined predicate receives the total share of the known bucket members it matches. A value never observed during fitting is not a known member and has zero exact probability. Conditioning on an individual bucket member produces the same posterior as conditioning on `OTHER`, because the disaggregation factor appears in both numerator and denominator and cancels. The model cannot recover conditional differences between values after grouping them.
+
+`sample()` emits `sorobn.OTHER` and returns compacted columns as pandas categoricals. `fit()` relearns frequency groups and member counts from the full supplied dataset. `partial_fit()` learns the groups from its first batch and freezes them thereafter, while continuing to track counts for values mapped to `OTHER`.
 
 ### 🔢 Support for continuous variables
 
-Continuous variables are supported through discretization. Configure a `Discretizer` per variable, then fit the network on raw data. The network learns ordinary discrete tables over pandas interval categories.
+Continuous variables are supported through discretization. Configure a `Discretizer` per numeric variable, then fit the network on raw data. Boolean and pandas categorical columns are rejected even when their category labels are numbers. The network learns ordinary discrete tables over pandas interval categories.
 
 | Configuration | Bin scheme |
 | --- | --- |

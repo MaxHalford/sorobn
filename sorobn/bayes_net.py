@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import vose
 
+from .compaction import Compactor
 from .discretization import Discretizer
 from .predicates import Predicate, as_predicate
 
@@ -303,6 +304,11 @@ class BayesNet:
         Optional mapping from numeric variable names to Discretizer objects. Each
         object is copied, fitted on raw data, and used to interpolate range queries.
 
+    compactors
+        Optional mapping from high-cardinality variable names to Compactor
+        objects. Each object is copied, fitted on raw data, and groups infrequent
+        and subsequently unseen values into the ``OTHER`` state.
+
     Attributes
     ----------
     nodes (list)
@@ -314,6 +320,7 @@ class BayesNet:
     def __init__(
         self, *structure, prior_count: int = None, seed: int = None,
         discretizers: dict[str, Discretizer] = None,
+        compactors: dict[str, Compactor] = None,
     ):
         self.prior_count = prior_count
         self.seed = seed
@@ -358,6 +365,20 @@ class BayesNet:
                 raise ValueError(f"Unknown discretized variable: {node!r}")
             if not isinstance(discretizer, Discretizer):
                 raise TypeError("discretizers must map variable names to Discretizer objects")
+
+        self.compactors = copy.deepcopy(compactors or {})
+        for node, compactor in self.compactors.items():
+            if node not in self.nodes:
+                raise ValueError(f"Unknown compacted variable: {node!r}")
+            if not isinstance(compactor, Compactor):
+                raise TypeError(
+                    "compactors must map variable names to Compactor objects"
+                )
+        overlap = set(self.discretizers) & set(self.compactors)
+        if overlap:
+            raise ValueError(
+                f"Variables cannot be both discretized and compacted: {sorted(overlap)}"
+            )
 
         self.P = {}
         self._P_sizes = {}
@@ -510,15 +531,16 @@ class BayesNet:
         fjd.name = f"P({', '.join(fjd.index.names)})"
         return fjd / fjd.sum()
 
-    def _restore_bin_categories(self, table):
+    def _restore_categories(self, table):
         """Keep fitted categories when pandas alignment casts an index to object."""
-        if not any(name in self.discretizers for name in table.index.names):
+        transformers = {**self.discretizers, **self.compactors}
+        if not any(name in transformers for name in table.index.names):
             return table
         arrays = []
         for name in table.index.names:
             values = table.index.get_level_values(name)
-            if name in self.discretizers:
-                values = pd.CategoricalIndex(values, dtype=self.discretizers[name].dtype_)
+            if name in transformers:
+                values = pd.CategoricalIndex(values, dtype=transformers[name].dtype_)
             arrays.append(values)
         table.index = (
             pd.MultiIndex.from_arrays(arrays, names=table.index.names)
@@ -527,10 +549,11 @@ class BayesNet:
         return table
 
     def partial_fit(self, X: pd.DataFrame):
-        """Update conditional distributions, keeping existing bin boundaries fixed.
+        """Update distributions, keeping fitted transformations fixed.
 
-        Unfitted discretizers learn boundaries from the first batch. Later batches
-        must lie within those boundaries; use explicit edges for a known domain.
+        Unfitted discretizers and compactors learn from the first batch.
+        Later batches use those same boundaries and groups, so accumulated counts
+        retain a stable meaning.
         """
 
         # Transform a copy: the caller's raw values and configuration stay intact.
@@ -546,6 +569,15 @@ class BayesNet:
             if X[node].isna().any() and not isinstance(X[node].dtype, pd.CategoricalDtype):
                 X[node] = X[node].astype(object).where(X[node].notna(), np.nan)
         self.discretizers = discretizers
+
+        compactors = copy.deepcopy(self.compactors)
+        for node, compactor in compactors.items():
+            if compactor.frequent_values_ is None:
+                compactor.fit(X[node])
+            else:
+                compactor.partial_fit(X[node])
+            X[node] = compactor.transform(X[node])
+        self.compactors = compactors
 
         # Compute the conditional distribution for each node that has parents
         for child, parents in self.parents.items():
@@ -571,7 +603,7 @@ class BayesNet:
                     counts = counts.add(prior, fill_value=0)
 
             # Normalize
-            counts = self._restore_bin_categories(counts)
+            counts = self._restore_categories(counts)
             grouped = counts.groupby(parents, dropna=False, observed=True)
             self._P_sizes[child] = grouped.sum()
             self.P[child] = counts / grouped.transform("sum")
@@ -592,19 +624,25 @@ class BayesNet:
                 self.P[root] = X[root].value_counts(normalize=True, dropna=False)
 
         for node in self.P:
-            self.P[node] = self._restore_bin_categories(self.P[node])
+            self.P[node] = self._restore_categories(self.P[node])
         self.prepare()
         self._path_sampler.invalidate()
         self._junction_sampler.invalidate()
         return self
 
     def fit(self, X: pd.DataFrame):
-        """Fit discretizers on raw data, then learn the discrete conditional tables."""
+        """Fit configured transformations, then learn conditional tables."""
         self.P = {}
         self._P_sizes = {}
         for discretizer in self.discretizers.values():
             discretizer.edges_ = None
             discretizer.dtype_ = None
+        for compactor in self.compactors.values():
+            compactor.frequent_values_ = None
+            compactor.infrequent_values_ = None
+            compactor.infrequent_counts_ = None
+            compactor.dtype_ = None
+            compactor._frequent = None
         return self.partial_fit(X)
 
     def _forward_sample_fast(self) -> typing.Iterator[dict]:
@@ -704,6 +742,7 @@ class BayesNet:
         certain (A,C) pairs, that constrains P(C | A=a).
 
         """
+        given = self._compact_event_values(given)
         factors = []
         for n in self.nodes:
             factor = self.P[n].copy()
@@ -750,6 +789,8 @@ class BayesNet:
 
         """
 
+        init = self._compact_event_values(init or {})
+
         if method == "forward":
             if init:
                 sampler = (sample for sample, _ in self._forward_sample(init))
@@ -771,8 +812,21 @@ class BayesNet:
             )
             for node, discretizer in self.discretizers.items():
                 samples[node] = samples[node].astype(discretizer.dtype_)
+            for node, compactor in self.compactors.items():
+                samples[node] = samples[node].astype(compactor.dtype_)
             return samples
         return pd.Series(next(sampler))
+
+    def _compact_event_values(self, event):
+        """Transform exact values used by algorithms that cannot use predicates."""
+        return {
+            node: (
+                self.compactors[node].transform_value(value)
+                if node in self.compactors and not isinstance(value, Predicate)
+                else value
+            )
+            for node, value in event.items()
+        }
 
     def _rejection_sampling(self, *variables, given, n_iterations):
         """Estimate a distribution using rejection sampling.
@@ -991,6 +1045,8 @@ class BayesNet:
             predicate = as_predicate(value)
             if node in self.discretizers:
                 values = self.discretizers[node].weights(predicate, states)
+            elif node in self.compactors:
+                values = self.compactors[node].weights(value, states)
             else:
                 values = [float(predicate(state)) for state in states]
             weights[node] = pd.Series(values, index=states)
@@ -1048,7 +1104,7 @@ class BayesNet:
 
         if not variables:
             return float(scalar)
-        return self._restore_bin_categories(scalar * pointwise_mul(factors))
+        return self._restore_categories(scalar * pointwise_mul(factors))
 
     def probability(self, event: dict, *, given: dict = None) -> float:
         """Return P(event | given), using exact inference in the discrete model.
@@ -1131,6 +1187,7 @@ class BayesNet:
             for variable in variables:
                 if variable in given:
                     raise ValueError("A target variable cannot be part of the evidence for sampling algorithms")
+            given = self._compact_event_values(given)
 
         if algorithm == "exact":
             answer = self._variable_elimination(*variables, given=given)

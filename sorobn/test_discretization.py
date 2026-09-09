@@ -5,6 +5,26 @@ import pytest
 import sorobn
 
 
+@pytest.mark.parametrize("values", [
+    pd.Series([1, 2], dtype=int),
+    pd.Series([1.0, 2.0], dtype=float),
+    pd.Series([1, 2], dtype="Int64"),
+])
+def test_discretizer_accepts_numeric_dtypes(values):
+    sorobn.Discretizer(n_bins=2).fit(values)
+
+
+@pytest.mark.parametrize("values", [
+    pd.Series(["1", "2"], dtype="string"),
+    pd.Series(["1", "2"], dtype=object),
+    pd.Series([True, False], dtype=bool),
+    pd.Series([1, 2], dtype="category"),
+])
+def test_discretizer_rejects_categorical_dtypes(values):
+    with pytest.raises(TypeError, match="numeric column"):
+        sorobn.Discretizer(n_bins=2).fit(values)
+
+
 def test_interval_categories_keep_empty_bins_and_nulls():
     values = pd.Series([0., 0.5, None, 3.], index=list("abcd"), name="amount")
     original = values.copy()
