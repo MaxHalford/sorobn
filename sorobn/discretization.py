@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from .predicates import as_predicate, is_null
+from .predicates import MISSING, as_predicate, is_null
 
 __all__ = ["Discretizer"]
 
@@ -31,7 +31,7 @@ class Discretizer:
     1    [5.0, 10.0]
     2    [5.0, 10.0]
     dtype: category
-    Categories (2, object): [[0.0, 5.0) < [5.0, 10.0]]
+    Categories (3, object): [[0.0, 5.0) < [5.0, 10.0] < <MISSING>]
     >>> binned.cat.codes.tolist()
     [0, 1, 1]
     >>> custom = Discretizer(edges=[0, 2, 10]).fit([0, 1, 2, 10])
@@ -60,6 +60,13 @@ class Discretizer:
     @staticmethod
     def _as_numeric_series(values):
         series = pd.Series(values)
+        explicit_missing = np.fromiter(
+            (value is MISSING for value in series), dtype=bool, count=len(series)
+        )
+        if explicit_missing.any():
+            series = series.astype(object)
+            series.loc[explicit_missing] = np.nan
+            series = series.infer_objects()
         dtype = series.dtype
         if (
             not pd.api.types.is_any_real_numeric_dtype(dtype)
@@ -94,10 +101,10 @@ class Discretizer:
         # Mixed closure keeps every endpoint exact: no padding or rounding of
         # labels is needed to include the maximum (or a constant point mass).
         # Pandas stores these native Interval scalars once, in the category index.
-        categories = pd.Index([
+        categories = pd.Index([*[
             pd.Interval(left, right, closed="both" if i == len(edges) - 2 else "left")
             for i, (left, right) in enumerate(zip(edges, edges[1:]))
-        ], dtype=object)
+        ], MISSING], dtype=object)
         self.dtype_ = pd.CategoricalDtype(categories=categories, ordered=True)
         return self
 
@@ -105,7 +112,8 @@ class Discretizer:
         """Return ordered interval categoricals, preserving the index and nulls.
 
         All fitted bins remain in ``.cat.categories``, including unobserved bins.
-        ``.cat.codes`` exposes the compact integer representation; -1 denotes null.
+        ``MISSING`` is an explicit category rather than pandas' implicit ``-1``
+        missing code, so it remains stable in indexes and dictionary lookups.
         """
         if self.edges_ is None:
             raise ValueError("Fit the discretizer before transforming values")
@@ -119,7 +127,7 @@ class Discretizer:
             raise ValueError("Values fall outside discretization edges")
         bins = np.searchsorted(self.edges_, values, side="right") - 1
         bins = np.minimum(bins, len(self.edges_) - 2)
-        bins[missing] = -1
+        bins[missing] = len(self.edges_) - 1
         binned = pd.Categorical.from_codes(bins, dtype=self.dtype_)
         return pd.Series(binned, index=series.index, name=series.name)
 

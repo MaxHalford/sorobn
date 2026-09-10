@@ -3,7 +3,9 @@
 import numpy as np
 import pandas as pd
 
-from .predicates import Eq, In, Ne, _Combined, _Negated, as_predicate, is_null
+from .predicates import (
+    MISSING, Eq, In, Ne, _Combined, _Negated, as_predicate, is_null,
+)
 
 __all__ = ["Compactor", "OTHER"]
 
@@ -54,11 +56,11 @@ class Compactor:
     ``"dirichlet"`` uses the posterior mean under a symmetric Dirichlet prior
     with concentration ``alpha`` per member.
 
-    Nulls are never grouped because they retain their usual missing-value
-    semantics. Frequency ties at a ``max_categories`` boundary are resolved by
-    first appearance. The ``OTHER`` state is always reserved, allowing later
-    calls to :meth:`transform` to handle values not seen during fitting without
-    growing the state space.
+    Nulls are never grouped: every external null representation becomes the
+    explicit :data:`~sorobn.MISSING` state. Frequency ties at a
+    ``max_categories`` boundary are resolved by first appearance. The ``OTHER``
+    state is always reserved, allowing later calls to :meth:`transform` to
+    handle values not seen during fitting without growing the state space.
 
     Examples
     --------
@@ -154,7 +156,10 @@ class Compactor:
     def fit(self, values):
         """Learn which values to retain from a one-dimensional collection."""
         series = self._as_categorical_series(values)
-        observed = series[series.notna()]
+        missing = np.fromiter(
+            (is_null(value) for value in series), dtype=bool, count=len(series)
+        )
+        observed = series[~missing]
         if observed.map(lambda value: value == OTHER).any():
             raise ValueError("OTHER is reserved and cannot occur in training data")
 
@@ -184,7 +189,7 @@ class Compactor:
         }
         self._frequent = set(self.frequent_values_)
         self.dtype_ = pd.CategoricalDtype(
-            categories=[*self.frequent_values_, OTHER], ordered=False
+            categories=[*self.frequent_values_, OTHER, MISSING], ordered=False
         )
         return self
 
@@ -192,7 +197,11 @@ class Compactor:
         """Update bucket counts without changing the retained categories."""
         if self._frequent is None:
             return self.fit(values)
-        observed = self._as_categorical_series(values).dropna()
+        series = self._as_categorical_series(values)
+        missing = np.fromiter(
+            (is_null(value) for value in series), dtype=bool, count=len(series)
+        )
+        observed = series[~missing]
         counts = observed.groupby(observed, sort=False, observed=True).size()
         additions = []
         for value, count in counts.items():
@@ -212,7 +221,7 @@ class Compactor:
         if self._frequent is None:
             raise ValueError("Fit the compactor before transforming values")
         if is_null(value):
-            return value
+            return MISSING
         return value if value in self._frequent else OTHER
 
     def transform(self, values):
@@ -221,7 +230,7 @@ class Compactor:
             raise ValueError("Fit the compactor before transforming values")
         series = self._as_categorical_series(values)
         grouped = [
-            np.nan if is_null(value) else self.transform_value(value)
+            MISSING if is_null(value) else self.transform_value(value)
             for value in series
         ]
         return pd.Series(

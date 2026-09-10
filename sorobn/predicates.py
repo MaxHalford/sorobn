@@ -10,13 +10,82 @@ import pandas as pd
 
 __all__ = [
     "Predicate", "Eq", "Ne", "Lt", "Le", "Gt", "Ge", "In", "Between",
-    "Like", "Regex", "Glob", "IsNull", "IsNotNull",
+    "Like", "Regex", "Glob", "IsNull", "IsNotNull", "MISSING",
 ]
 
 
+class _Missing:
+    """Collision-free model state used for every external null representation."""
+
+    def __repr__(self):
+        return "<MISSING>"
+
+    def __str__(self):
+        return "<MISSING>"
+
+    def __eq__(self, other):
+        return isinstance(other, _Missing)
+
+    def __hash__(self):
+        return hash(_Missing)
+
+    # Pandas sorts group keys and indexes in several internal paths. Make the
+    # sentinel a deterministic final value without imposing an order on normal
+    # states themselves.
+    def __lt__(self, other):
+        return False
+
+    def __le__(self, other):
+        return isinstance(other, _Missing)
+
+    def __gt__(self, other):
+        return not isinstance(other, _Missing)
+
+    def __ge__(self, other):
+        return True
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
+
+    def __reduce__(self):
+        return (_get_missing, ())
+
+
+MISSING = _Missing()
+
+
+def _get_missing():
+    return MISSING
+
+
 def is_null(value):
+    if isinstance(value, _Missing):
+        return True
     missing = pd.isna(value)
     return bool(missing) if pd.api.types.is_scalar(missing) else False
+
+
+def normalize_missing(value):
+    """Return the stable model state for any pandas-recognized null scalar."""
+    return MISSING if is_null(value) else value
+
+
+def state_key(value):
+    """Return a reflexive dictionary key for a model state."""
+    return MISSING if is_null(value) else value
+
+
+def states_equal(left, right):
+    """Compare model states with all external null representations equivalent."""
+    if is_null(left):
+        return is_null(right)
+    if is_null(right):
+        return False
+    result = left == right
+    return bool(result) if pd.api.types.is_scalar(result) else False
 
 
 def as_predicate(value):

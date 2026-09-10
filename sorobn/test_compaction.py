@@ -1,4 +1,5 @@
 import copy
+import pickle
 
 import pandas as pd
 import pytest
@@ -79,7 +80,9 @@ def test_max_categories_includes_reserved_other_and_breaks_ties_by_appearance():
     assert compactor.transform(["second", "third", "new"]).tolist() == [
         "second", sorobn.OTHER, sorobn.OTHER
     ]
-    assert list(compactor.dtype_.categories) == ["second", "first", sorobn.OTHER]
+    assert list(compactor.dtype_.categories) == [
+        "second", "first", sorobn.OTHER, sorobn.MISSING,
+    ]
 
 
 def test_categorical_input_ignores_unobserved_levels_and_uses_row_order_for_ties():
@@ -136,7 +139,7 @@ def test_min_frequency_accepts_counts_and_fractions(min_frequency, expected):
         ["a", "a", "a", "b", "b", "c", None, None]
     )
     assert compactor.frequent_values_ == expected
-    assert pd.isna(compactor.transform([None]).iloc[0])
+    assert compactor.transform([None]).iloc[0] is sorobn.MISSING
 
 
 def test_partial_fit_freezes_groups_and_never_grows_past_limit():
@@ -158,7 +161,8 @@ def test_partial_fit_freezes_groups_and_never_grows_past_limit():
     assert model.compactors["kind"].infrequent_values_ == ("c", "d")
     assert model.compactors["kind"].infrequent_counts_ == {"c": 2, "d": 1}
     assert model.probability({"kind": "c"}) == pytest.approx(1 / 3)
-    assert len(model.P["kind"].dropna()) <= 3
+    assert len(model.P["kind"][model.P["kind"] > 0]) <= 3
+    assert model.P["kind"][sorobn.MISSING] == 0
 
 
 def test_refit_relearns_groups_and_configuration_is_copied():
@@ -217,3 +221,15 @@ def test_other_is_reserved():
 
 def test_deepcopy_preserves_other_label_equality():
     assert copy.deepcopy(sorobn.OTHER) is sorobn.OTHER
+
+
+def test_missing_is_a_stable_public_singleton():
+    assert repr(sorobn.MISSING) == "<MISSING>"
+    assert copy.deepcopy(sorobn.MISSING) is sorobn.MISSING
+    assert pickle.loads(pickle.dumps(sorobn.MISSING)) is sorobn.MISSING
+    assert sorobn.IsNull()(sorobn.MISSING)
+    assert not sorobn.IsNotNull()(sorobn.MISSING)
+    model = sorobn.BayesNet("value").fit(
+        pd.DataFrame({"value": [sorobn.MISSING, "present"]})
+    )
+    assert model.P["value"][sorobn.MISSING] == pytest.approx(0.5)

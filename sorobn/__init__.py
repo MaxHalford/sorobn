@@ -7,7 +7,7 @@ from .compaction import Compactor, OTHER
 from .discretization import Discretizer
 from .predicates import (
     Between, Eq, Ge, Glob, Gt, In, IsNotNull, IsNull, Le, Like, Lt, Ne,
-    Predicate, Regex,
+    MISSING, Predicate, Regex,
 )
 
 
@@ -17,7 +17,7 @@ __all__ = [
     'OTHER',
     'Discretizer',
     'Predicate', 'Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge', 'In', 'Between',
-    'Like', 'Regex', 'Glob', 'IsNull', 'IsNotNull',
+    'Like', 'Regex', 'Glob', 'IsNull', 'IsNotNull', 'MISSING',
     'examples',
     'structure'
 ]

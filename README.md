@@ -20,8 +20,9 @@ The main goal of this project is to be used for educational purposes. As such, m
   - [✍️ Manual structures](#️-manual-structures)
   - [🎲 Random sampling](#-random-sampling)
   - [🔮 Probabilistic inference](#-probabilistic-inference)
+  - [🕳️ Support for missing values](#️-support-for-missing-values)
   - [🔎 Predicates and selectivity estimation](#-predicates-and-selectivity-estimation)
-  - [❓ Missing value imputation](#-missing-value-imputation)
+  - [❓ Empty data imputation](#-empty-data-imputation)
   - [🤷 Likelihood estimation](#-likelihood-estimation)
   - [🧮 Parameter estimation](#-parameter-estimation)
   - [🪣 High-cardinality variables](#-high-cardinality-variables)
@@ -272,6 +273,37 @@ The supported inference methods are:
 
 As with random sampling, randomness is controlled during `BayesNet` initialization, via the `seed` parameter.
 
+### 🕳️ Support for missing values
+
+Missingness is a first-class model state. At the API boundary, `None`, `NaN`, `pd.NA`, `NaT`, and `sorobn.MISSING` are all accepted. During fitting they are canonicalized to the collision-free singleton `sorobn.MISSING`, which is also what distributions and samples expose:
+
+```python
+>>> observations = pd.DataFrame({'status': ['ok', None, pd.NA]})
+>>> status_bn = sorobn.BayesNet('status').fit(observations)
+>>> status_bn.distribution('status')
+status
+ok           0.333333
+<MISSING>    0.666667
+Name: P(status), dtype: float64
+>>> status_bn.sample(init={'status': pd.NA})['status'] is sorobn.MISSING
+True
+
+```
+
+Raw null values in event dictionaries select the missing state, so `{'status': pd.NA}` and `{'status': sorobn.IsNull()}` are equivalent. `IsNull()` and `IsNotNull()` are clearer in predicate expressions. Explicit comparisons retain SQL's three-valued logic, so `Eq(None)` and `Eq(sorobn.MISSING)` evaluate to unknown rather than selecting missing values:
+
+```python
+>>> status_bn.probability({'status': sorobn.IsNull()})
+0.6666666666666666
+>>> status_bn.probability({'status': pd.NA})
+0.6666666666666666
+>>> status_bn.probability({'status': sorobn.IsNotNull()})
+0.3333333333333333
+
+```
+
+An absent variable and an observed missing value are different. Omitting a key from evidence sums that variable out; including any accepted null scalar in a row passed to `predict_proba()` scores the `MISSING` state. Likewise, `sample(init=...)` treats a null initializer as the explicit missing state. Missing targets remain present in exact and approximate posterior distributions.
+
 ### 🔎 Predicates and selectivity estimation
 
 `probability(event, given=...)` returns a scalar probability, whereas `distribution(*variables, given=...)` returns a posterior distribution as a `pd.Series`. Both accept predicates as well as ordinary values:
@@ -334,9 +366,9 @@ Use `&`, `|`, and `~` for AND, OR, and NOT on the **same variable**:
 
 ```
 
-### ❓ Missing value imputation
+### ❓ Empty data imputation
 
-A use case for probabilistic inference is to impute missing values. The `impute` method fills the missing values with the most likely replacements, given the present information. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
+A use case for probabilistic inference is to impute missing values. The `impute` method accepts every missing representation listed above and fills each target with the most likely **non-missing** joint assignment, given the present information. It never chooses `MISSING` as a replacement; if a target has no non-missing state with positive probability, it raises a `ValueError`. A sample without missing values is returned unchanged. This is usually more accurate than simply replacing by the mean or the most common value. Additionally, such an approach can be much more efficient than [model-based iterative imputation](https://scikit-learn.org/stable/modules/generated/sklearn.impute.IterativeImputer.html#sklearn.impute.IterativeImputer).
 
 ```python
 >>> sample = {
@@ -519,7 +551,7 @@ Quantile binning removes duplicate edges, so repeated values can produce fewer t
 >>> binned_amount.cat.ordered
 True
 >>> binned_amount.cat.categories.tolist()
-[Interval(0.0, 10.0, closed='left'), Interval(10.0, 20.0, closed='both')]
+[Interval(0.0, 10.0, closed='left'), Interval(10.0, 20.0, closed='both'), <MISSING>]
 >>> binned_amount.cat.codes.tolist()
 [0, 0, 1, 1]
 >>> amount_bn.distribution('amount')
@@ -546,7 +578,7 @@ Range queries assume **uniform density within each bin**, equivalent to linear i
 
 Equality to one continuous value has zero probability under this model, except for a column fitted as a constant point mass. For numeric categories such as years or IDs, leave the variable discrete when equality frequencies matter. Nulls remain separate from numeric bins. Queries outside the fitted range have zero mass there.
 
-Each transformed cell contains a native `pd.Interval` value, exposing its `.left`, `.right`, and `.closed` properties. Pandas stores these intervals once in `.cat.categories` and uses compact integer codes per row. Empty bins remain in the categories; missing values use pandas' missing code `-1`. The ordered categorical dtype supports the final bin's inclusive right edge without changing or rounding any boundary.
+Each transformed non-missing cell contains a native `pd.Interval` value, exposing its `.left`, `.right`, and `.closed` properties. Pandas stores these intervals once in `.cat.categories` and uses compact integer codes per row. Empty bins remain in the categories, and `MISSING` is an explicit category rather than pandas' implicit missing code `-1`.
 
 `distribution()` returns probabilities indexed by interval categories for discretized targets, and `sample()` returns interval values, with categorical columns when returning a DataFrame. `probability()` interprets predicates in the original numeric units. Supplied discretizers and training data are copied. `fit()` relearns bin boundaries; `partial_fit()` fixes them after the first batch and rejects out-of-range values. Use explicit edges when the domain is known in advance.
 

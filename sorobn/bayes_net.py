@@ -12,9 +12,70 @@ import vose
 
 from .compaction import Compactor
 from .discretization import Discretizer
-from .predicates import Predicate, as_predicate
+from .predicates import (
+    MISSING, IsNull, Predicate, as_predicate, is_null, normalize_missing,
+    states_equal,
+)
 
 __all__ = ["BayesNet"]
+
+
+def _normalize_missing_series(series):
+    """Copy a Series and replace every pandas null scalar with ``MISSING``."""
+    missing = np.fromiter(
+        (is_null(value) and value is not MISSING for value in series),
+        dtype=bool,
+        count=len(series),
+    )
+    if not missing.any():
+        return series
+    if isinstance(series.dtype, pd.CategoricalDtype):
+        normalized = series
+        if MISSING not in normalized.cat.categories:
+            normalized = normalized.cat.add_categories([MISSING])
+        return normalized.fillna(MISSING)
+    normalized = series.astype(object).copy()
+    normalized.loc[missing] = MISSING
+    return normalized
+
+
+def _state_mask(index, name, value):
+    """Select an index level using null-aware model-state equality."""
+    states = index.get_level_values(name)
+    return np.fromiter(
+        (states_equal(state, value) for state in states), dtype=bool, count=len(states)
+    )
+
+
+def _condition_factor(factor, conditions, *, drop=False):
+    """Filter a factor by exact states without relying on NaN equality."""
+    mask = np.ones(len(factor), dtype=bool)
+    selected_names = []
+    for name, value in conditions.items():
+        if name in factor.index.names:
+            mask &= _state_mask(factor.index, name, value)
+            selected_names.append(name)
+    result = factor[mask]
+    if drop and selected_names and isinstance(result.index, pd.MultiIndex):
+        result.index = result.index.droplevel(selected_names)
+    return result
+
+
+def _probability_at(distribution, value):
+    """Look up a scalar state probability with null-aware equality."""
+    mask = np.fromiter(
+        (states_equal(state, value) for state in distribution.index),
+        dtype=bool,
+        count=len(distribution),
+    )
+    return float(distribution[mask].sum())
+
+
+def _as_event_predicate(value):
+    """Interpret raw null evidence as the explicit missing model state."""
+    if isinstance(value, Predicate):
+        return value
+    return IsNull() if is_null(value) else as_predicate(value)
 
 
 @pd.api.extensions.register_series_accessor("cdt")
@@ -427,6 +488,24 @@ class BayesNet:
                 P = P.reorder_levels([*self.parents[node], node])
             else:
                 P.index.names = [*self.parents[node], node]
+
+            # Manual CPTs may use any pandas missing scalar. Model tables use a
+            # stable, reflexive state so joins, hashes, and sampling agree.
+            if any(
+                is_null(value) and value is not MISSING
+                for name in P.index.names
+                for value in P.index.get_level_values(name)
+            ):
+                arrays = [
+                    [normalize_missing(value) for value in P.index.get_level_values(name)]
+                    for name in P.index.names
+                ]
+                P.index = (
+                    pd.MultiIndex.from_arrays(arrays, names=P.index.names)
+                    if isinstance(P.index, pd.MultiIndex)
+                    else pd.Index(arrays[0], name=P.index.name)
+                )
+                self.P[node] = P
             P.sort_index(inplace=True)
             P.name = (
                 f"P({node} | {', '.join(map(str, self.parents[node]))})"
@@ -563,11 +642,10 @@ class BayesNet:
             if discretizer.edges_ is None:
                 discretizer.fit(X[node])
             X[node] = discretizer.transform(X[node])
-        # Use a single null representation so root tables and grouped child tables
-        # agree when their indexes are joined (None and NaN do not always align).
+        # Use a stable first-class state so tables, joins, and dictionary lookups
+        # agree across None, NaN, pandas.NA, and NaT.
         for node in self.nodes:
-            if X[node].isna().any() and not isinstance(X[node].dtype, pd.CategoricalDtype):
-                X[node] = X[node].astype(object).where(X[node].notna(), np.nan)
+            X[node] = _normalize_missing_series(X[node])
         self.discretizers = discretizers
 
         compactors = copy.deepcopy(self.compactors)
@@ -658,13 +736,14 @@ class BayesNet:
         compiled = self._forward_compiled
         nodes = self.nodes
         parents = self.parents
+        from .sampling import _condition_key
 
         while True:
             sample = {}
             for node in nodes:
                 lookup = compiled[node]
                 if node in parents:
-                    condition = tuple(sample[p] for p in parents[node])
+                    condition = _condition_key(sample[p] for p in parents[node])
                 else:
                     condition = ()
                 values, sampler = lookup[condition]
@@ -690,16 +769,23 @@ class BayesNet:
                 # Access P(node | parents(node))
                 P = self.P[node]
                 if node in self.parents:
-                    condition = tuple(sample[parent] for parent in self.parents[node])
-                    P = P.cdt[condition]
+                    conditions = {
+                        parent: sample[parent] for parent in self.parents[node]
+                    }
+                    P = _condition_factor(P, conditions, drop=True)
+                    if P.empty:
+                        raise ValueError(
+                            f"Impossible parent state while sampling {node!r}: "
+                            f"{conditions!r}"
+                        )
 
                 if node in init:
                     node_value = init[node]
+                    likelihood *= _probability_at(P, node_value)
                 else:
                     node_value = P.cdt.sample(rng=self._rng)
 
                 sample[node] = node_value
-                likelihood *= P.get(node_value, 0)
 
             yield sample, likelihood
 
@@ -746,9 +832,7 @@ class BayesNet:
         factors = []
         for n in self.nodes:
             factor = self.P[n].copy()
-            for var, val in given.items():
-                if var in factor.index.names:
-                    factor = factor[factor.index.get_level_values(var) == val]
+            factor = _condition_factor(factor, given)
             if len(factor) > 0:
                 factors.append(factor)
 
@@ -798,10 +882,16 @@ class BayesNet:
                 sampler = self._forward_sample_fast()
 
         elif method == "path":
-            sampler = self._path_sampler.iter_samples(self._rng, init)
+            sampler = (
+                self._conditional_samples(init) if init
+                else self._path_sampler.iter_samples(self._rng)
+            )
 
         elif method == "junction":
-            sampler = self._junction_sampler.iter_samples(self._rng, init)
+            sampler = (
+                self._conditional_samples(init) if init
+                else self._junction_sampler.iter_samples(self._rng)
+            )
 
         else:
             raise ValueError("Unknown method, must be one of: forward, path, junction")
@@ -817,12 +907,29 @@ class BayesNet:
             return samples
         return pd.Series(next(sampler))
 
+    def _conditional_samples(self, init):
+        """Yield exact samples conditioned on arbitrary initialized states."""
+        while True:
+            sample = dict(init)
+            for node in self.nodes:
+                if node in sample:
+                    continue
+                evidence = {
+                    name: IsNull() if is_null(value) else value
+                    for name, value in sample.items()
+                }
+                posterior = self.distribution(node, given=evidence)
+                sample[node] = posterior.cdt.sample(rng=self._rng)
+            yield sample
+
     def _compact_event_values(self, event):
         """Transform exact values used by algorithms that cannot use predicates."""
         return {
             node: (
-                self.compactors[node].transform_value(value)
-                if node in self.compactors and not isinstance(value, Predicate)
+                value if isinstance(value, Predicate)
+                else MISSING if is_null(value)
+                else self.compactors[node].transform_value(value)
+                if node in self.compactors
                 else value
             )
             for node, value in event.items()
@@ -862,7 +969,7 @@ class BayesNet:
             sample = next(sampler)
 
             # Reject if the sample is not consistent with the given evidence
-            if any(sample[var] != val for var, val in given.items()):
+            if any(not states_equal(sample[var], val) for var, val in given.items()):
                 continue
 
             for var in variables:
@@ -870,7 +977,9 @@ class BayesNet:
 
         # Aggregate and normalize the obtained samples
         samples = pd.DataFrame(samples)
-        return samples.groupby(list(variables)).size() / len(samples)
+        return (
+            samples.groupby(list(variables), dropna=False).size() / len(samples)
+        )
 
     def _llh_weighting(self, *variables, given, n_iterations):
         """Likelihood weighting.
@@ -911,7 +1020,9 @@ class BayesNet:
 
         # Now we aggregate the resulting samples according to their associated likelihoods
         results = pd.DataFrame({"likelihood": likelihoods, **samples})
-        results = results.groupby(list(variables))["likelihood"].mean()
+        results = results.groupby(
+            list(variables), dropna=False
+        )["likelihood"].sum()
         results /= results.sum()
 
         return results
@@ -977,9 +1088,9 @@ class BayesNet:
 
             # Sample from P(var | boundary(var))
             P = posteriors[var]
-            condition = tuple(state[node] for node in boundaries[var])
-            if condition:
-                P = P.cdt[condition]
+            if boundaries[var]:
+                conditions = {node: state[node] for node in boundaries[var]}
+                P = _condition_factor(P, conditions, drop=True)
             state[var] = P.cdt.sample(rng=self._rng)
 
             # Record the current state
@@ -988,7 +1099,9 @@ class BayesNet:
 
         # Aggregate and normalize the obtained samples
         samples = pd.DataFrame(samples)
-        return samples.groupby(list(variables)).size() / len(samples)
+        return (
+            samples.groupby(list(variables), dropna=False).size() / len(samples)
+        )
 
     def _variable_elimination(self, *variables, given):
         """Variable elimination.
@@ -1042,11 +1155,11 @@ class BayesNet:
         weights = {}
         for node, value in event.items():
             states = self.P[node].index.get_level_values(node).unique()
-            predicate = as_predicate(value)
+            predicate = _as_event_predicate(value)
             if node in self.discretizers:
                 values = self.discretizers[node].weights(predicate, states)
             elif node in self.compactors:
-                values = self.compactors[node].weights(value, states)
+                values = self.compactors[node].weights(predicate, states)
             else:
                 values = [float(predicate(state)) for state in states]
             weights[node] = pd.Series(values, index=states)
@@ -1110,7 +1223,8 @@ class BayesNet:
         """Return P(event | given), using exact inference in the discrete model.
 
         Dictionaries combine variable predicates with AND; ordinary values mean
-        equality. Use &, |, and ~ to combine predicates on the same variable.
+        equality, while raw null values select the ``MISSING`` state. Use &, |,
+        and ~ to combine predicates on the same variable.
         Discretized ranges use uniform density within each bin. An impossible event
         returns zero; conditioning on impossible evidence raises ValueError.
         """
@@ -1121,7 +1235,7 @@ class BayesNet:
         combined = dict(given)
         for node, predicate in event.items():
             combined[node] = (
-                as_predicate(given[node]) & as_predicate(predicate)
+                _as_event_predicate(given[node]) & _as_event_predicate(predicate)
                 if node in given else predicate
             )
         return float(self._event_distribution((), combined) / denominator)
@@ -1220,37 +1334,51 @@ class BayesNet:
         return answer.sort_index()
 
     def impute(self, sample: dict, **distribution_params) -> pd.Series:
-        """Replace missing values with the most probable possibility.
+        """Replace missing values with the most probable non-missing states.
 
         This method returns a fresh copy and does not modify the input.
 
         Parameters
         ----------
         sample
-            The sample for which the missing values need replacing. The missing values are expected
-            to be represented with `None`.
+            The sample for which missing values need replacing. ``None``, ``NaN``,
+            ``pandas.NA``, ``NaT``, and :data:`MISSING` are all accepted.
         distribution_params
             The rest of the keyword arguments for specifying what parameters to call the `distribution`
             method with.
 
         """
 
-        # Determine which variables are missing and which ones are not
-        missing = []
-        given = sample.copy()
-        for k, v in sample.items():
-            if v is None:
-                missing.append(k)
-                del given[k]
+        missing = [name for name, value in sample.items() if is_null(value)]
+        if not missing:
+            return pd.Series(sample.copy())
+        given = {
+            name: value for name, value in sample.items() if name not in missing
+        }
 
-        # Compute the likelihood of each possibility
         posterior = self.distribution(*missing, given=given, **distribution_params)
+        non_missing = np.ones(len(posterior), dtype=bool)
+        for name in posterior.index.names:
+            states = posterior.index.get_level_values(name)
+            non_missing &= np.fromiter(
+                (not is_null(state) for state in states),
+                dtype=bool,
+                count=len(states),
+            )
+        posterior = posterior[non_missing]
+        if posterior.empty or posterior.sum() <= 0:
+            raise ValueError(
+                "Cannot impute because no non-null state has positive probability"
+            )
 
-        # Replace the missing values with the most likely values
-        for k, v in zip(posterior.index.names, posterior.idxmax()):
-            given[k] = v
+        choice = posterior.idxmax()
+        if not isinstance(posterior.index, pd.MultiIndex):
+            choice = (choice,)
+        result = sample.copy()
+        for name, value in zip(posterior.index.names, choice):
+            result[name] = value
 
-        return pd.Series(given)
+        return pd.Series(result)
 
     def graphviz(self):
         """Export to Graphviz.
@@ -1291,8 +1419,14 @@ class BayesNet:
 
         """
 
+        def observed_event(row):
+            return {
+                node: IsNull() if is_null(value) else value
+                for node, value in row.items()
+            }
+
         if isinstance(X, dict):
-            return np.float64(self.probability(X))
+            return np.float64(self.probability(observed_event(X)))
         columns = sorted(X.columns)
         if not columns:
             return pd.Series(1.0, index=X.index, name="P()")
@@ -1301,7 +1435,7 @@ class BayesNet:
             else pd.MultiIndex.from_frame(X[columns])
         )
         return pd.Series(
-            [self.probability(row) for row in X.to_dict("records")],
+            [self.probability(observed_event(row)) for row in X.to_dict("records")],
             index=index, name=f"P({', '.join(sorted(self.P))})", dtype=float,
         )
 

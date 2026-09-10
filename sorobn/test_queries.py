@@ -138,6 +138,101 @@ def test_nulls_and_partial_fit():
         assert model.distribution("A", given={"B": sb.IsNull()}).sum() == pytest.approx(1)
 
 
+def test_prepare_canonicalizes_missing_states_in_manual_tables():
+    model = sb.BayesNet(("A", "B"))
+    model.P["A"] = pd.Series([0.5, 0.5], index=pd.Index(["x", None]))
+    model.P["B"] = pd.DataFrame({
+        "A": ["x", "x", pd.NA, pd.NA],
+        "B": [0, 1, 0, 1],
+        "p": [0.25, 0.75, 0.8, 0.2],
+    })
+    model.prepare()
+    assert model.P["A"].index.tolist() == ["x", sb.MISSING]
+    assert model.probability(
+        {"B": 0}, given={"A": sb.IsNull()}
+    ) == pytest.approx(0.8)
+
+
+@pytest.mark.parametrize("marker", [None, np.nan, pd.NA, pd.NaT, sb.MISSING])
+def test_impute_accepts_every_pandas_missing_scalar(marker):
+    numeric = sb.BayesNet("X").fit(pd.DataFrame({"X": [10, 10, None]}))
+    assert numeric.impute({"X": marker})["X"] == 10
+
+    text = sb.BayesNet("X").fit(pd.DataFrame({"X": ["long", "long", None]}))
+    assert text.impute({"X": marker})["X"] == "long"
+
+
+def test_impute_is_a_noop_without_missing_values_and_preserves_order():
+    model = sb.BayesNet(("A", "B")).fit(pd.DataFrame({
+        "A": ["x", "x", "y"],
+        "B": [1, None, 2],
+    }))
+    complete = {"B": 2, "A": "y"}
+    result = model.impute(complete)
+    assert result.to_dict() == complete
+    assert result.index.tolist() == ["B", "A"]
+
+
+def test_impute_never_chooses_the_missing_state():
+    model = sb.BayesNet(("A", "B")).fit(pd.DataFrame({
+        "A": [None, None, "x"],
+        "B": [None, None, 1],
+    }))
+    result = model.impute({"A": None, "B": None})
+    assert result.to_dict() == {"A": "x", "B": 1.0}
+
+    all_null = sb.BayesNet("X").fit(pd.DataFrame({"X": [None, pd.NA]}))
+    with pytest.raises(ValueError, match="non-null"):
+        all_null.impute({"X": None})
+
+
+@pytest.mark.parametrize("algorithm", ["gibbs", "likelihood", "rejection"])
+def test_approximate_inference_retains_missing_target_mass(algorithm):
+    model = sb.BayesNet("X", seed=42).fit(
+        pd.DataFrame({"X": ["a", "a", None]})
+    )
+    result = model.distribution("X", algorithm=algorithm, n_iterations=3_000)
+    assert result.sum() == pytest.approx(1)
+    assert result[sb.MISSING] == pytest.approx(1 / 3, abs=0.05)
+
+
+@pytest.mark.parametrize("algorithm", ["gibbs", "likelihood", "rejection"])
+@pytest.mark.parametrize("marker", [None, np.nan, pd.NA, pd.NaT, sb.MISSING])
+def test_approximate_inference_accepts_missing_evidence(algorithm, marker):
+    data = pd.DataFrame({
+        "A": [None, None, "x", "x"],
+        "B": [0, 0, 1, 1],
+    })
+    model = sb.BayesNet(("A", "B"), seed=42).fit(data)
+    result = model.distribution(
+        "B", given={"A": marker}, algorithm=algorithm, n_iterations=100
+    )
+    assert result.to_dict() == {0: 1.0}
+
+
+@pytest.mark.parametrize("method", ["forward", "path", "junction"])
+@pytest.mark.parametrize("marker", [None, np.nan, pd.NA, pd.NaT, sb.MISSING])
+def test_conditioned_sampling_accepts_missing_values(method, marker):
+    data = pd.DataFrame({
+        "A": [None, None, "x", "x"],
+        "B": [0, 0, 1, 1],
+    })
+    model = sb.BayesNet(("A", "B"), seed=42).fit(data)
+    sample = model.sample(init={"A": marker}, method=method)
+    assert sample["A"] is sb.MISSING
+    assert sample["B"] == 0
+
+
+def test_predict_proba_treats_missing_cells_as_observed_missing_states():
+    model = sb.BayesNet("X").fit(pd.DataFrame({"X": ["a", None]}))
+    for marker in (None, np.nan, pd.NA, pd.NaT, sb.MISSING):
+        assert model.probability({"X": marker}) == pytest.approx(0.5)
+        assert model.predict_proba({"X": marker}) == pytest.approx(0.5)
+        assert model.probability({"X": sb.Eq(marker)}) == 0
+    result = model.predict_proba(pd.DataFrame({"X": ["a", None]}))
+    assert result.tolist() == pytest.approx([0.5, 0.5])
+
+
 @pytest.mark.parametrize("predicate,values,expected", [
     (sb.Between(1, 2), [0, 1, 2, 3, None], [False, True, True, False, False]),
     (sb.Glob("a?*"), ["a", "ab", "abc", None, 12], [False, True, True, False, False]),

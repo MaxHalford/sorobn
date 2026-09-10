@@ -4,6 +4,8 @@ import itertools
 import numpy as np
 import pandas as pd
 
+from .predicates import is_null, normalize_missing
+
 __all__ = ["chow_liu"]
 
 
@@ -62,11 +64,17 @@ def chow_liu(X, root=None):
         raise ValueError(f"Unknown root variable: {root!r}")
 
     X = X.copy()
-    # Match parameter learning: normalize null representations before aligning
-    # marginal and joint tables, and retain them when counting observations.
+    # Match parameter learning: normalize every external null representation to
+    # the stable MISSING state before aligning marginal and joint tables.
     for node in X.columns:
-        if X[node].isna().any() and not isinstance(X[node].dtype, pd.CategoricalDtype):
-            X[node] = X[node].astype(object).where(X[node].notna(), np.nan)
+        missing = np.fromiter(
+            (is_null(value) for value in X[node]), dtype=bool, count=len(X)
+        )
+        if missing.any():
+            X[node] = X[node].astype(object)
+            X.loc[missing, node] = [
+                normalize_missing(value) for value in X.loc[missing, node]
+            ]
 
     # Compute the mutual information between each pair of variables
     marginals = {v: X[v].value_counts(normalize=True, dropna=False) for v in X.columns}

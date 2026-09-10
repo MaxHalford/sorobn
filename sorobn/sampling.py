@@ -4,6 +4,8 @@ import itertools
 import pandas as pd
 import vose
 
+from .predicates import state_key
+
 
 # ---------------------------------------------------------------------------
 # Graph algorithms for junction trees
@@ -137,6 +139,11 @@ def _factor_names(factor):
     return [factor.index.name]
 
 
+def _condition_key(values):
+    """Build a stable lookup key, canonicalizing every null representation."""
+    return tuple(state_key(value) for value in values)
+
+
 def _compile_conditional(cond, conditioning_vars, rng):
     """Precompile a conditional table into a fast lookup structure.
 
@@ -166,7 +173,7 @@ def _compile_conditional(cond, conditioning_vars, rng):
             values = vals_idx.tolist()
             weights = group.to_numpy(dtype=float)
             sampler = vose.Sampler(weights=weights, seed=seed)
-            lookup[key] = (values, sampler)
+            lookup[_condition_key(key)] = (values, sampler)
     else:
         # Single-level index with conditioning — shouldn't normally happen
         values = cond.index.tolist()
@@ -321,7 +328,7 @@ class PathSampler:
                     continue
 
                 if conditioning_vars:
-                    condition = tuple(sample[v] for v in conditioning_vars)
+                    condition = _condition_key(sample[v] for v in conditioning_vars)
                 else:
                     condition = ()
 
@@ -467,7 +474,7 @@ class JunctionTreeSampler:
                     continue
 
                 if sepset:
-                    condition = tuple(sample[v] for v in sepset)
+                    condition = _condition_key(sample[v] for v in sepset)
                 else:
                     condition = ()
 

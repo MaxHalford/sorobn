@@ -37,9 +37,10 @@ def test_interval_categories_keep_empty_bins_and_nulls():
         pd.Interval(0, 1, closed="left"),
         pd.Interval(1, 2, closed="left"),
         pd.Interval(2, 3, closed="both"),
+        sorobn.MISSING,
     ]
-    assert result.cat.codes.tolist() == [0, 0, -1, 2]
-    assert result.isna().tolist() == [False, False, True, False]
+    assert result.cat.codes.tolist() == [0, 0, 3, 2]
+    assert result.eq(sorobn.MISSING).tolist() == [False, False, True, False]
     assert result.iloc[0].left == 0
     assert result.iloc[0].right == 1
     assert result.iloc[-1].closed == "both"
@@ -57,14 +58,16 @@ def test_interval_membership_at_every_boundary():
     assert binned.cat.codes.tolist() == [0, 0, 1, 1, 2, 2]
     for value, interval in zip(values, binned):
         assert value in interval
-        assert sum(value in category for category in binned.cat.categories) == 1
+        assert sum(value in category for category in binned.cat.categories[:-1]) == 1
 
 
 def test_constant_column_is_a_closed_point_interval():
     result = sorobn.Discretizer().fit_transform(pd.Series([7., 7., None]))
     assert isinstance(result.dtype, pd.CategoricalDtype)
-    assert list(result.cat.categories) == [pd.Interval(7., 7., closed="both")]
-    assert result.cat.codes.tolist() == [0, 0, -1]
+    assert list(result.cat.categories) == [
+        pd.Interval(7., 7., closed="both"), sorobn.MISSING,
+    ]
+    assert result.cat.codes.tolist() == [0, 0, 1]
     assert 7 in result.iloc[0]
 
 
@@ -94,9 +97,9 @@ def test_posterior_and_incremental_fit_retain_interval_categories():
     for model in (full, partial):
         posterior = model.distribution("X", given={"Y": 1})
         assert isinstance(posterior.index, pd.CategoricalIndex)
-        assert len(posterior.index.categories) == 3
+        assert len(posterior.index.categories) == 4
         assert posterior[pd.Interval(2., 3., closed="both")] == 0.5
-        assert posterior[posterior.index.isna()].iloc[0] == 0.5
+        assert posterior[sorobn.MISSING] == 0.5
         assert model.probability({"X": sorobn.Between(1, 2)}) == 0
         assert model.probability({"X": sorobn.IsNull()}) == 0.25
 
@@ -113,7 +116,7 @@ def test_sampling_native_bins_with_unobserved_categories(method, missing):
     samples = model.sample(20, method=method)
     assert samples.X.dtype == model.discretizers["X"].dtype_
     for x, y in samples.itertuples(index=False, name=None):
-        if pd.isna(x):
+        if x is sorobn.MISSING:
             assert missing and y == 2
             continue
         assert isinstance(x, pd.Interval)
@@ -123,9 +126,9 @@ def test_sampling_native_bins_with_unobserved_categories(method, missing):
 def test_all_null_input_with_explicit_bins():
     model = sorobn.BayesNet(
         "X", discretizers={"X": sorobn.Discretizer(edges=[0, 1, 2])}
-    ).fit(pd.DataFrame({"X": pd.Series([pd.NA, pd.NA], dtype="Float64")}))
+    ).fit(pd.DataFrame({"X": [sorobn.MISSING, pd.NA]}))
     assert isinstance(model.P["X"].index, pd.CategoricalIndex)
-    assert len(model.P["X"].index.categories) == 2
+    assert len(model.P["X"].index.categories) == 3
     assert model.probability({"X": sorobn.IsNull()}) == 1
     assert model.probability({"X": sorobn.IsNotNull()}) == 0
 
