@@ -1,6 +1,7 @@
 <div align="center">
     <h1>sorobn — Bayesian networks in Python</h1>
     <div>
+        <a href="https://pypi.org/project/sorobn/"><img src="https://img.shields.io/pypi/v/sorobn.svg" alt="pypi" /></a>
         <a href="https://github.com/MaxHalford/sorobn/actions/workflows/test.yml"><img src="https://github.com/MaxHalford/sorobn/actions/workflows/test.yml/badge.svg" /></a>
     </div>
 </div>
@@ -717,4 +718,4 @@ uv run pytest
 
 ## License
 
-This project is free and open-source software licensed under the [MIT license](https://github.com/MaxHalford/sorobn/blob/master/LICENSE).
+The MIT License (MIT). Please see the [license file](LICENSE) for more information.
