@@ -4,7 +4,7 @@ import itertools
 import numpy as np
 import pandas as pd
 
-from .predicates import is_null, normalize_missing
+from .predicates import MISSING, null_mask
 
 __all__ = ["chow_liu"]
 
@@ -67,14 +67,10 @@ def chow_liu(X, root=None):
     # Match parameter learning: normalize every external null representation to
     # the stable MISSING state before aligning marginal and joint tables.
     for node in X.columns:
-        missing = np.fromiter(
-            (is_null(value) for value in X[node]), dtype=bool, count=len(X)
-        )
+        missing = null_mask(X[node])
         if missing.any():
             X[node] = X[node].astype(object)
-            X.loc[missing, node] = [
-                normalize_missing(value) for value in X.loc[missing, node]
-            ]
+            X.loc[missing, node] = MISSING
 
     # Compute the mutual information between each pair of variables
     marginals = {v: X[v].value_counts(normalize=True, dropna=False) for v in X.columns}

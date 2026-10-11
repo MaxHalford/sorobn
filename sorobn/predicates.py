@@ -6,6 +6,7 @@ import operator
 import re
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 __all__ = [
@@ -66,6 +67,22 @@ def is_null(value):
         return True
     missing = pd.isna(value)
     return bool(missing) if pd.api.types.is_scalar(missing) else False
+
+
+def null_mask(series):
+    """Vectorized is_null over a Series: each distinct value is checked once."""
+    if isinstance(series.dtype, pd.CategoricalDtype):
+        codes, uniques = series.cat.codes.to_numpy(), series.cat.categories
+    elif pd.api.types.is_object_dtype(series.dtype):
+        codes, uniques = pd.factorize(series, use_na_sentinel=True)
+    else:
+        return series.isna().to_numpy()
+    uniques = pd.Index(uniques, dtype=object)
+    # Code -1 is a pandas null: it picks the trailing True. An absent MISSING
+    # also indexes -1, which is already True.
+    flags = np.append(uniques.isna(), True)
+    flags[uniques.get_indexer([MISSING])[0]] = True
+    return flags[codes]
 
 
 def normalize_missing(value):

@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from .predicates import (
-    MISSING, Eq, In, Ne, _Combined, _Negated, as_predicate, is_null,
+    MISSING, Eq, In, Ne, _Combined, _Negated, as_predicate, is_null, null_mask,
 )
 
 __all__ = ["Compactor", "OTHER"]
@@ -152,17 +152,14 @@ class Compactor:
     def fit(self, values):
         """Learn which values to retain from a one-dimensional collection."""
         series = self._as_categorical_series(values)
-        missing = np.fromiter(
-            (is_null(value) for value in series), dtype=bool, count=len(series)
-        )
-        observed = series[~missing]
-        if observed.map(lambda value: value == OTHER).any():
-            raise ValueError("OTHER is reserved and cannot occur in training data")
+        observed = series[~null_mask(series)]
 
         # ``sort=False`` preserves first appearance. The stable frequency sort
         # consequently gives deterministic behavior for ties without requiring
         # heterogeneous values to be mutually orderable.
         counts = observed.groupby(observed, sort=False, observed=True).size()
+        if OTHER in counts.index:
+            raise ValueError("OTHER is reserved and cannot occur in training data")
         ranked = counts.sort_values(ascending=False, kind="stable")
 
         # Each limit keeps a prefix of the ranked values: keep the shortest.
@@ -213,12 +210,18 @@ class Compactor:
         if self._frequent is None:
             raise ValueError("Fit the compactor before transforming values")
         series = self._as_categorical_series(values)
-        grouped = [
-            MISSING if is_null(value) else self.transform_value(value)
-            for value in series
-        ]
+
+        # Codes into dtype_: frequent values first, then OTHER, then MISSING.
+        frequent = pd.Index(self.frequent_values_, dtype=object)
+        if isinstance(series.dtype, pd.CategoricalDtype):
+            lookup = np.append(frequent.get_indexer(series.cat.categories), -1)
+            codes = lookup[series.cat.codes.to_numpy()]
+        else:
+            codes = frequent.get_indexer(series.astype(object))
+        codes[codes < 0] = len(frequent)
+        codes[null_mask(series)] = len(frequent) + 1
         return pd.Series(
-            pd.Categorical(grouped, dtype=self.dtype_),
+            pd.Categorical.from_codes(codes, dtype=self.dtype_),
             index=series.index,
             name=series.name,
         )
