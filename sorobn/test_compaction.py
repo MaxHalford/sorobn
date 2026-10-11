@@ -108,20 +108,13 @@ def test_compactor_repr_is_stable_and_concise():
     )
 
 
-@pytest.mark.parametrize(
-    "coverage,expected",
-    [
-        (0.5, ("a",)),
-        (0.8, ("a", "b")),
-        (1.0, ("a", "b", "c")),
-    ],
-)
-def test_coverage_keeps_values_until_their_share_of_rows_is_reached(coverage, expected):
-    # Shares use non-null observations: a covers 3 of 6, a and b cover 5 of 6.
-    compactor = sorobn.Compactor(coverage=coverage).fit(
-        ["a", "a", "a", "b", "b", "c", None, None]
+def test_coverage_keeps_values_until_their_share_of_rows_is_reached():
+    # Shares use non-null observations: a covers 6 of 10, a and b cover 9 of 10.
+    compactor = sorobn.Compactor(coverage=0.9).fit(
+        ["a"] * 6 + ["b"] * 3 + ["c"] + [None] * 2
     )
-    assert compactor.frequent_values_ == expected
+    assert compactor.frequent_values_ == ("a", "b")
+    assert compactor.n_members_ == 1
     assert compactor.transform([None]).iloc[0] is sorobn.MISSING
 
 
