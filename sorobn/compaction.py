@@ -45,11 +45,11 @@ def _get_other():
 class Compactor:
     """Group infrequent non-null values into :data:`OTHER`.
 
-    ``min_frequency`` keeps values occurring at least that many times, or at
-    least that fraction of all observations when given a float.
-    ``max_categories`` is a hard cap on the number of non-null model states,
-    including ``OTHER``: the most frequent values are kept first. Set either,
-    or both to keep frequent values but never more than the cap.
+    ``coverage`` keeps the most frequent values until they cover that share of
+    the non-null observations: with ``coverage=0.9``, ``OTHER`` holds at most
+    10% of them. ``max_categories`` is a hard cap on the number of non-null
+    model states, including ``OTHER``: the most frequent values are kept first.
+    Set either, or both to reach the coverage but never exceed the cap.
 
     Only the frequent values and the number of grouped values (``n_members_``)
     are kept, so memory does not grow with the number of distinct values.
@@ -80,33 +80,24 @@ class Compactor:
     True
     """
 
-    def __init__(self, *, max_categories=None, min_frequency=None):
-        if max_categories is None and min_frequency is None:
-            raise ValueError(
-                "Specify max_categories, min_frequency, or both"
-            )
+    def __init__(self, *, max_categories=None, coverage=None):
+        if max_categories is None and coverage is None:
+            raise ValueError("Specify max_categories, coverage, or both")
         if max_categories is not None and (
             not isinstance(max_categories, int)
             or isinstance(max_categories, bool)
             or max_categories < 1
         ):
             raise ValueError("max_categories must be a positive integer")
-        if min_frequency is not None:
-            valid_count = (
-                isinstance(min_frequency, int)
-                and not isinstance(min_frequency, bool)
-                and min_frequency >= 1
-            )
-            valid_fraction = (
-                isinstance(min_frequency, float) and 0 < min_frequency <= 1
-            )
-            if not (valid_count or valid_fraction):
-                raise ValueError(
-                    "min_frequency must be a positive integer or a float in (0, 1]"
-                )
+        if coverage is not None and (
+            not isinstance(coverage, (int, float))
+            or isinstance(coverage, bool)
+            or not 0 < coverage <= 1
+        ):
+            raise ValueError("coverage must be a number in (0, 1]")
 
         self.max_categories = max_categories
-        self.min_frequency = min_frequency
+        self.coverage = coverage
         self.frequent_values_ = None
         self.n_members_ = None
         self.dtype_ = None
@@ -116,8 +107,8 @@ class Compactor:
         options = []
         if self.max_categories is not None:
             options.append(f"max_categories={self.max_categories!r}")
-        if self.min_frequency is not None:
-            options.append(f"min_frequency={self.min_frequency!r}")
+        if self.coverage is not None:
+            options.append(f"coverage={self.coverage!r}")
         return f"Compactor({', '.join(options)})"
 
     @staticmethod
@@ -154,13 +145,11 @@ class Compactor:
         ranked = counts.sort_values(ascending=False, kind="stable")
 
         kept = ranked.index
-        if self.min_frequency is not None:
-            threshold = (
-                self.min_frequency * len(series)
-                if isinstance(self.min_frequency, float)
-                else self.min_frequency
-            )
-            kept = ranked[ranked >= threshold].index
+        if self.coverage is not None:
+            # Keep values until the cumulative share reaches the coverage,
+            # including the value that crosses it.
+            share = ranked.cumsum() / ranked.sum() if len(ranked) else ranked
+            kept = ranked.index[: int((share < self.coverage).sum()) + 1]
         if self.max_categories is not None:
             kept = kept[: max(0, self.max_categories - 1)]
 

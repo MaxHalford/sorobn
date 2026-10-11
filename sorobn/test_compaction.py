@@ -103,21 +103,22 @@ def test_compactor_repr_is_stable_and_concise():
     assert repr(sorobn.Compactor(max_categories=3)) == (
         "Compactor(max_categories=3)"
     )
-    assert repr(sorobn.Compactor(min_frequency=0.1)) == (
-        "Compactor(min_frequency=0.1)"
+    assert repr(sorobn.Compactor(coverage=0.9)) == (
+        "Compactor(coverage=0.9)"
     )
 
 
 @pytest.mark.parametrize(
-    "min_frequency,expected",
+    "coverage,expected",
     [
-        (2, ("a", "b")),
-        (0.3, ("a",)),
+        (0.5, ("a",)),
+        (0.8, ("a", "b")),
+        (1.0, ("a", "b", "c")),
     ],
 )
-def test_min_frequency_accepts_counts_and_fractions(min_frequency, expected):
-    # Fractions use all observations as their denominator; null stays separate.
-    compactor = sorobn.Compactor(min_frequency=min_frequency).fit(
+def test_coverage_keeps_values_until_their_share_of_rows_is_reached(coverage, expected):
+    # Shares use non-null observations: a covers 3 of 6, a and b cover 5 of 6.
+    compactor = sorobn.Compactor(coverage=coverage).fit(
         ["a", "a", "a", "b", "b", "c", None, None]
     )
     assert compactor.frequent_values_ == expected
@@ -169,9 +170,10 @@ def test_grouped_samples_use_the_fitted_categorical_dtype():
     {},
     {"max_categories": 0},
     {"max_categories": True},
-    {"min_frequency": 0},
-    {"min_frequency": 1.1},
-    {"min_frequency": True},
+    {"coverage": 0},
+    {"coverage": 1.1},
+    {"coverage": True},
+    {"coverage": "0.9"},
 ])
 def test_validation(kwargs):
     with pytest.raises(ValueError):
@@ -210,14 +212,14 @@ def test_missing_is_a_stable_public_singleton():
     assert model.P["value"][sorobn.MISSING] == pytest.approx(0.5)
 
 
-def test_max_categories_caps_min_frequency():
+def test_max_categories_caps_coverage():
     values = ["a"] * 5 + ["b"] * 4 + ["c"] * 3 + ["d"]
-    # min_frequency alone keeps a, b, c. The cap keeps the two most frequent.
-    assert sorobn.Compactor(min_frequency=2).fit(values).frequent_values_ == ("a", "b", "c")
-    capped = sorobn.Compactor(min_frequency=2, max_categories=3).fit(values)
+    # Coverage alone keeps a, b, c: 12 of 13 rows. The cap keeps the two most frequent.
+    assert sorobn.Compactor(coverage=0.9).fit(values).frequent_values_ == ("a", "b", "c")
+    capped = sorobn.Compactor(coverage=0.9, max_categories=3).fit(values)
     assert capped.frequent_values_ == ("a", "b")
     assert capped.n_members_ == 2
     # A loose cap changes nothing.
-    loose = sorobn.Compactor(min_frequency=2, max_categories=10).fit(values)
+    loose = sorobn.Compactor(coverage=0.9, max_categories=10).fit(values)
     assert loose.frequent_values_ == ("a", "b", "c")
-    assert repr(capped) == "Compactor(max_categories=3, min_frequency=2)"
+    assert repr(capped) == "Compactor(max_categories=3, coverage=0.9)"
