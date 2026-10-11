@@ -18,58 +18,42 @@ def test_max_categories_groups_least_frequent_values_everywhere():
     ).fit(data)
 
     assert model.compactors["city"].frequent_values_ == ("Paris", "London")
-    assert model.compactors["city"].infrequent_values_ == ("Lyon", "Nice")
-    assert model.compactors["city"].infrequent_counts_ == {
-        "Lyon": 2, "Nice": 1
-    }
+    assert model.compactors["city"].n_members_ == 2
     assert model.P["city"]["Paris"] == pytest.approx(0.4)
     assert model.P["city"]["London"] == pytest.approx(0.3)
     assert model.P["city"][sorobn.OTHER] == pytest.approx(0.3)
     assert model.P["bought"].loc[sorobn.OTHER, True] == pytest.approx(1 / 3)
     assert model.P["bought"].loc[sorobn.OTHER, False] == pytest.approx(2 / 3)
 
-    # Individual bucket members receive a uniform share of the aggregate mass.
+    # Grouped values are assumed equally frequent: 1 / n_members_ of OTHER each.
     assert model.probability({"city": sorobn.OTHER}) == pytest.approx(0.3)
     assert model.probability({"city": "Lyon"}) == pytest.approx(0.15)
     assert model.probability({"city": sorobn.Eq("Nice")}) == pytest.approx(0.15)
     assert model.probability({"city": sorobn.In(["Paris", "Nice"])}) == pytest.approx(0.55)
-    assert model.probability({"city": sorobn.Glob("L*")}) == pytest.approx(0.45)
-    assert model.probability({"city": "Berlin"}) == 0
+    assert model.probability({"city": sorobn.Ne("Nice")}) == pytest.approx(0.85)
+    # An unseen value is assumed to be a grouped value too.
+    assert model.probability({"city": "Berlin"}) == pytest.approx(0.15)
+    # Patterns take their share of OTHER from the frequent values: London
+    # matches one of two, so OTHER contributes (1 + 1) / (2 + 2) of its 0.3.
+    assert model.probability({"city": sorobn.Glob("L*")}) == pytest.approx(0.3 + 0.15)
+    assert model.probability({"city": sorobn.Glob("Z*")}) == pytest.approx(0.3 / 4)
     assert model.distribution("bought", given={"city": "Nice"})[True] == pytest.approx(1 / 3)
 
 
-@pytest.mark.parametrize(
-    "disaggregation,alpha,lyon,nice",
-    [
-        ("uniform", 1, 0.15, 0.15),
-        ("empirical", 1, 0.2, 0.1),
-        ("dirichlet", 1, 0.18, 0.12),
-        ("dirichlet", 2, 6 / 35, 9 / 70),
-    ],
-)
-def test_disaggregation_strategies(disaggregation, alpha, lyon, nice):
-    data = pd.DataFrame({
-        "city": ["Paris"] * 4 + ["London"] * 3 + ["Lyon"] * 2 + ["Nice"]
-    })
-    model = sorobn.BayesNet(
-        "city",
-        compactors={
-            "city": sorobn.Compactor(
-                max_categories=3,
-                disaggregation=disaggregation,
-                alpha=alpha,
-            )
-        },
-    ).fit(data)
+def test_memory_does_not_grow_with_distinct_values():
+    values = [f"v{i}" for i in range(10_000)] + ["common"] * 10_000
+    compactor = sorobn.Compactor(max_categories=2).fit(values)
+    assert compactor.n_members_ == 10_000
+    assert len(pickle.dumps(compactor)) < 1_000
 
-    assert model.probability({"city": "Lyon"}) == pytest.approx(lyon)
-    assert model.probability({"city": "Nice"}) == pytest.approx(nice)
-    assert model.probability({
-        "city": sorobn.In(["Lyon", "Nice"])
-    }) == pytest.approx(0.3)
-    assert model.probability({"city": sorobn.Glob("L*")}) == pytest.approx(
-        0.3 + lyon
-    )
+
+def test_ranges_take_their_share_from_frequent_values():
+    data = pd.DataFrame({"x": pd.Series([1, 1, 2, 2, 9, 10, 11]).astype("category")})
+    model = sorobn.BayesNet(
+        "x", compactors={"x": sorobn.Compactor(max_categories=3)}
+    ).fit(data)
+    # Frequent: 1 and 2, both below 5. OTHER holds 3 of 7 rows.
+    assert model.probability({"x": sorobn.Lt(5)}) == pytest.approx(4 / 7 + 3 / 7 * 3 / 4)
 
 
 def test_max_categories_includes_reserved_other_and_breaks_ties_by_appearance():
@@ -92,7 +76,7 @@ def test_categorical_input_ignores_unobserved_levels_and_uses_row_order_for_ties
     )
     compactor = sorobn.Compactor(max_categories=3).fit(values)
     assert compactor.frequent_values_ == ("second", "first")
-    assert "unused" not in compactor.infrequent_values_
+    assert compactor.n_members_ == 1
 
 
 @pytest.mark.parametrize("values", [
@@ -119,10 +103,8 @@ def test_compactor_repr_is_stable_and_concise():
     assert repr(sorobn.Compactor(max_categories=3)) == (
         "Compactor(max_categories=3)"
     )
-    assert repr(sorobn.Compactor(
-        min_frequency=0.1, disaggregation="dirichlet", alpha=2
-    )) == (
-        "Compactor(min_frequency=0.1, disaggregation='dirichlet', alpha=2)"
+    assert repr(sorobn.Compactor(min_frequency=0.1)) == (
+        "Compactor(min_frequency=0.1)"
     )
 
 
@@ -146,9 +128,7 @@ def test_partial_fit_freezes_groups_and_never_grows_past_limit():
     model = sorobn.BayesNet(
         "kind",
         compactors={
-            "kind": sorobn.Compactor(
-                max_categories=3, disaggregation="empirical"
-            )
+            "kind": sorobn.Compactor(max_categories=3)
         },
     )
     model.partial_fit(pd.DataFrame({"kind": ["a", "a", "b"]}))
@@ -158,9 +138,9 @@ def test_partial_fit_freezes_groups_and_never_grows_past_limit():
     assert model.P["kind"]["a"] == pytest.approx(2 / 6)
     assert model.P["kind"]["b"] == pytest.approx(1 / 6)
     assert model.P["kind"][sorobn.OTHER] == pytest.approx(3 / 6)
-    assert model.compactors["kind"].infrequent_values_ == ("c", "d")
-    assert model.compactors["kind"].infrequent_counts_ == {"c": 2, "d": 1}
-    assert model.probability({"kind": "c"}) == pytest.approx(1 / 3)
+    assert model.compactors["kind"].n_members_ == 0
+    # The first batch had no grouped values: OTHER counts as one member.
+    assert model.probability({"kind": "c"}) == pytest.approx(3 / 6)
     assert len(model.P["kind"][model.P["kind"] > 0]) <= 3
     assert model.P["kind"][sorobn.MISSING] == 0
 
@@ -193,10 +173,6 @@ def test_grouped_samples_use_the_fitted_categorical_dtype():
     {"min_frequency": 0},
     {"min_frequency": 1.1},
     {"min_frequency": True},
-    {"max_categories": 2, "disaggregation": "unknown"},
-    {"max_categories": 2, "alpha": 0},
-    {"max_categories": 2, "alpha": float("nan")},
-    {"max_categories": 2, "alpha": True},
 ])
 def test_validation(kwargs):
     with pytest.raises(ValueError):

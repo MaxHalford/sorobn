@@ -510,19 +510,28 @@ Compactor(min_frequency=0.01)
 
 ```
 
-Null values are kept separate from `OTHER`. They can therefore add one state beyond `max_categories`. Querying `sorobn.OTHER` selects the aggregate bucket. A query against original bucket members divides that aggregate probability according to the configured `disaggregation` rule:
+Null values are kept separate from `OTHER`. They can therefore add one state beyond `max_categories`. Querying `sorobn.OTHER` selects the aggregate bucket.
 
-| Configuration | Probability assigned within `OTHER` |
+A compactor only stores the frequent values and the number of grouped values, `n_members_`. Its memory therefore does not grow with the number of distinct values. Queries on grouped values are estimated with heuristics:
+
+| Predicate | Share of `OTHER` |
 | --- | --- |
-| `disaggregation='uniform'` | Equal share for every distinct member (the default) |
-| `disaggregation='empirical'` | Proportional to each member's observed count |
-| `disaggregation='dirichlet', alpha=1` | Posterior mean under a symmetric Dirichlet prior |
+| `Eq`, `In`, `Ne` | Every grouped value is assumed equally frequent: `1 / n_members_` each |
+| Anything else (patterns, ranges) | Taken from the frequent values: `(matches + 1) / (len(frequent_values_) + 2)` |
 
-For the example above, `OTHER` contains `Lyon` twice and `Nice` once. Uniform disaggregation assigns each city half of the bucket probability; empirical disaggregation assigns them two thirds and one third. Dirichlet disaggregation uses `(count + alpha) / (total_count + alpha * n_members)`, interpolating between those results. Larger `alpha` pulls the shares toward uniform.
+```python
+>>> city_bn.compactors['city'].n_members_
+2
+>>> round(city_bn.probability({'city': 'Lyon'}), 6)  # (2 / 7) / 2
+0.142857
+>>> round(city_bn.probability({'city': sorobn.Glob('L*')}), 6)  # 2 / 7 + (2 / 7) * (2 / 4)
+0.428571
 
-The rule applies to arbitrary predicates: an `In`, pattern, ordering, or combined predicate receives the total share of the known bucket members it matches. A value never observed during fitting is not a known member and has zero exact probability. Conditioning on an individual bucket member produces the same posterior as conditioning on `OTHER`, because the disaggregation factor appears in both numerator and denominator and cancels. The model cannot recover conditional differences between values after grouping them.
+```
 
-`sample()` emits `sorobn.OTHER` and returns compacted columns as pandas categoricals. `fit()` relearns frequency groups and member counts from the full supplied dataset. `partial_fit()` learns the groups from its first batch and freezes them thereafter, while continuing to track counts for values mapped to `OTHER`.
+A value never observed during fitting is treated as a grouped value. Conditioning on a grouped value produces the same posterior as conditioning on `OTHER`: the model cannot recover differences between values after grouping them.
+
+`sample()` emits `sorobn.OTHER` and returns compacted columns as pandas categoricals. `fit()` relearns the groups from the full supplied dataset. `partial_fit()` learns the groups and `n_members_` from its first batch and freezes them thereafter.
 
 ### 🔢 Support for continuous variables
 
