@@ -45,10 +45,11 @@ def _get_other():
 class Compactor:
     """Group infrequent non-null values into :data:`OTHER`.
 
-    Exactly one strategy must be selected. ``max_categories`` places an upper
-    bound on the number of non-null model states, including ``OTHER``.
     ``min_frequency`` keeps values occurring at least that many times, or at
     least that fraction of all observations when given a float.
+    ``max_categories`` is a hard cap on the number of non-null model states,
+    including ``OTHER``: the most frequent values are kept first. Set either,
+    or both to keep frequent values but never more than the cap.
 
     Only the frequent values and the number of grouped values (``n_members_``)
     are kept, so memory does not grow with the number of distinct values.
@@ -80,9 +81,9 @@ class Compactor:
     """
 
     def __init__(self, *, max_categories=None, min_frequency=None):
-        if (max_categories is None) == (min_frequency is None):
+        if max_categories is None and min_frequency is None:
             raise ValueError(
-                "Specify exactly one of max_categories or min_frequency"
+                "Specify max_categories, min_frequency, or both"
             )
         if max_categories is not None and (
             not isinstance(max_categories, int)
@@ -112,9 +113,12 @@ class Compactor:
         self._frequent = None
 
     def __repr__(self):
+        options = []
         if self.max_categories is not None:
-            return f"Compactor(max_categories={self.max_categories!r})"
-        return f"Compactor(min_frequency={self.min_frequency!r})"
+            options.append(f"max_categories={self.max_categories!r}")
+        if self.min_frequency is not None:
+            options.append(f"min_frequency={self.min_frequency!r}")
+        return f"Compactor({', '.join(options)})"
 
     @staticmethod
     def _as_categorical_series(values):
@@ -149,15 +153,16 @@ class Compactor:
         counts = observed.groupby(observed, sort=False, observed=True).size()
         ranked = counts.sort_values(ascending=False, kind="stable")
 
-        if self.max_categories is not None:
-            kept = ranked.index[: max(0, self.max_categories - 1)]
-        else:
+        kept = ranked.index
+        if self.min_frequency is not None:
             threshold = (
                 self.min_frequency * len(series)
                 if isinstance(self.min_frequency, float)
                 else self.min_frequency
             )
             kept = ranked[ranked >= threshold].index
+        if self.max_categories is not None:
+            kept = kept[: max(0, self.max_categories - 1)]
 
         self.frequent_values_ = tuple(kept)
         self.n_members_ = len(ranked) - len(kept)

@@ -167,7 +167,6 @@ def test_grouped_samples_use_the_fitted_categorical_dtype():
 
 @pytest.mark.parametrize("kwargs", [
     {},
-    {"max_categories": 2, "min_frequency": 2},
     {"max_categories": 0},
     {"max_categories": True},
     {"min_frequency": 0},
@@ -209,3 +208,16 @@ def test_missing_is_a_stable_public_singleton():
         pd.DataFrame({"value": [sorobn.MISSING, "present"]})
     )
     assert model.P["value"][sorobn.MISSING] == pytest.approx(0.5)
+
+
+def test_max_categories_caps_min_frequency():
+    values = ["a"] * 5 + ["b"] * 4 + ["c"] * 3 + ["d"]
+    # min_frequency alone keeps a, b, c. The cap keeps the two most frequent.
+    assert sorobn.Compactor(min_frequency=2).fit(values).frequent_values_ == ("a", "b", "c")
+    capped = sorobn.Compactor(min_frequency=2, max_categories=3).fit(values)
+    assert capped.frequent_values_ == ("a", "b")
+    assert capped.n_members_ == 2
+    # A loose cap changes nothing.
+    loose = sorobn.Compactor(min_frequency=2, max_categories=10).fit(values)
+    assert loose.frequent_values_ == ("a", "b", "c")
+    assert repr(capped) == "Compactor(max_categories=3, min_frequency=2)"

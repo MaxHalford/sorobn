@@ -500,13 +500,15 @@ Name: P(city), dtype: float64
 
 ```
 
-`max_categories` includes `OTHER`, so the example retains the two most frequent values and uses its third state for everything else. Frequency ties are resolved by first appearance. Alternatively, retain every value above an absolute count or a fraction of all observations:
+`max_categories` includes `OTHER`, so the example retains the two most frequent values and uses its third state for everything else. Frequency ties are resolved by first appearance. Alternatively, retain every value above an absolute count or a fraction of all observations. Set both to keep frequent values, but never more than `max_categories`:
 
 ```python
 >>> sorobn.Compactor(min_frequency=10)   # At least 10 occurrences
 Compactor(min_frequency=10)
 >>> sorobn.Compactor(min_frequency=0.01) # At least 1% of rows
 Compactor(min_frequency=0.01)
+>>> sorobn.Compactor(min_frequency=0.01, max_categories=100)  # Both, capped at 100
+Compactor(max_categories=100, min_frequency=0.01)
 
 ```
 
