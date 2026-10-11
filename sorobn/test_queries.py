@@ -364,3 +364,18 @@ def test_discretization_validation(histogram):
         sb.Discretizer().transform([0])
     with pytest.raises(TypeError, match="discretized"):
         histogram.probability({"X": sb.Glob("*")})
+
+
+@pytest.mark.parametrize("values,expected", [
+    (pd.Series(["a", None, float("nan"), pd.NA, sb.MISSING, "b"], dtype=object),
+     [False, True, True, True, True, False]),
+    (pd.Series(["a", None, "b"], dtype="str"), [False, True, False]),
+    (pd.Series([1.0, float("nan")]), [False, True]),
+    (pd.Series(pd.Categorical(["a", None, sb.MISSING])), [False, True, True]),
+    (pd.Series(pd.Categorical([None, None])), [True, True]),
+    (pd.Series([], dtype=object), []),
+])
+def test_null_mask_matches_is_null(values, expected):
+    from sorobn.predicates import is_null, null_mask
+    assert null_mask(values).tolist() == expected
+    assert [is_null(v) for v in values] == expected

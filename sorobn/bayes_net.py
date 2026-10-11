@@ -13,7 +13,7 @@ import vose
 from .compaction import Compactor
 from .discretization import Discretizer
 from .predicates import (
-    MISSING, IsNull, Predicate, as_predicate, is_null, normalize_missing,
+    MISSING, IsNull, Predicate, as_predicate, is_null, normalize_missing, null_mask,
     states_equal,
 )
 
@@ -22,11 +22,7 @@ __all__ = ["BayesNet"]
 
 def _normalize_missing_series(series):
     """Copy a Series and replace every pandas null scalar with ``MISSING``."""
-    missing = np.fromiter(
-        (is_null(value) and value is not MISSING for value in series),
-        dtype=bool,
-        count=len(series),
-    )
+    missing = null_mask(series)
     if not missing.any():
         return series
     if isinstance(series.dtype, pd.CategoricalDtype):
