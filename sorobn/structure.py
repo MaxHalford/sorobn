@@ -5,11 +5,12 @@ import numpy as np
 import pandas as pd
 
 from .predicates import is_null, normalize_missing
+from .weighting import split_weights
 
 __all__ = ["chow_liu"]
 
 
-def chow_liu(X, root=None):
+def chow_liu(X, root=None, weights=None):
     """Return a Chow-Liu tree.
 
     A Chow-Liu tree takes three steps to build:
@@ -54,6 +55,7 @@ def chow_liu(X, root=None):
 
     """
 
+    X, w = split_weights(X, weights)
     if X.empty:
         raise ValueError("Structure learning requires nonempty data")
     if not X.columns.is_unique:
@@ -77,14 +79,18 @@ def chow_liu(X, root=None):
             ]
 
     # Compute the mutual information between each pair of variables
-    marginals = {v: X[v].value_counts(normalize=True, dropna=False) for v in X.columns}
+    total = w.sum()
+    marginals = {
+        v: w.groupby(X[v], dropna=False, observed=True, sort=False).sum() / total
+        for v in X.columns
+    }
     edge = collections.namedtuple("edge", ["u", "v", "mi"])
     mis = (
         edge(
             u,
             v,
             mutual_info(
-                puv=X.groupby([u, v], dropna=False, observed=True, sort=False).size() / len(X),
+                puv=w.groupby([X[u], X[v]], dropna=False, observed=True, sort=False).sum() / total,
                 pu=marginals[u], pv=marginals[v],
             ),
         )

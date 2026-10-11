@@ -8,6 +8,20 @@ from .predicates import MISSING, as_predicate, is_null
 __all__ = ["Discretizer"]
 
 
+def _quantile(values, weights, qs):
+    """np.quantile(np.repeat(values, weights), qs), without repeating.
+
+    The k-th value of the repeated sorted array is the first value whose
+    cumulative weight exceeds k.
+    """
+    order = np.argsort(values, kind="stable")
+    values, cumulative = values[order], np.cumsum(weights[order])
+    positions = qs * (cumulative[-1] - 1)
+    lo, hi = np.floor(positions), np.ceil(positions)
+    at = lambda k: values[np.minimum(np.searchsorted(cumulative, k, side="right"), len(values) - 1)]
+    return at(lo) + (positions - lo) * (at(hi) - at(lo))
+
+
 class Discretizer:
     """Learn equal-width or quantile bins, or use explicit finite edges.
 
@@ -77,11 +91,14 @@ class Discretizer:
             )
         return series
 
-    def fit(self, values):
+    def fit(self, values, weights=None):
+        """Learn bins. ``weights`` gives each value's count (default 1)."""
         values = self._as_numeric_series(values).to_numpy(
             dtype=float, na_value=np.nan
         )
-        observed = values[~np.isnan(values)]
+        weights = np.ones(len(values)) if weights is None else np.asarray(weights, dtype=float)
+        keep = ~np.isnan(values) & (weights > 0)
+        observed, weights = values[keep], weights[keep]
         if not np.isfinite(observed).all():
             raise ValueError("Discretization requires finite values or nulls")
         if self.edges is not None:
@@ -91,7 +108,7 @@ class Discretizer:
         elif self.strategy == "uniform":
             edges = np.linspace(observed.min(), observed.max(), self.n_bins + 1)
         else:
-            edges = np.quantile(observed, np.linspace(0, 1, self.n_bins + 1))
+            edges = _quantile(observed, weights, np.linspace(0, 1, self.n_bins + 1))
         edges = np.unique(edges)
         if len(edges) == 1:
             edges = np.repeat(edges, 2)

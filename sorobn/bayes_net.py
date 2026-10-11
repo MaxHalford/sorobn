@@ -12,12 +12,19 @@ import vose
 
 from .compaction import Compactor
 from .discretization import Discretizer
+from .weighting import split_weights
 from .predicates import (
     MISSING, IsNull, Predicate, as_predicate, is_null, normalize_missing,
     states_equal,
 )
 
 __all__ = ["BayesNet"]
+
+
+def _root_counts(series, w):
+    """Weighted value counts, keeping unobserved categories like value_counts."""
+    counts = w.groupby(series, dropna=False, observed=False, sort=False).sum()
+    return counts.rename_axis(series.name).sort_values(ascending=False, kind="stable")
 
 
 def _normalize_missing_series(series):
@@ -628,20 +635,24 @@ class BayesNet:
         )
         return table
 
-    def partial_fit(self, X: pd.DataFrame):
+    def partial_fit(self, X: pd.DataFrame, weights=None):
         """Update distributions, keeping fitted transformations fixed.
 
         Unfitted discretizers and compactors learn from the first batch.
         Later batches use those same boundaries and groups, so accumulated counts
         retain a stable meaning.
+
+        ``weights`` gives each row's count: a column name of X, or one number
+        per row. Fitting ``GROUP BY`` counts then equals fitting the raw rows.
         """
 
         # Transform a copy: the caller's raw values and configuration stay intact.
+        X, w = split_weights(X, weights)
         X = X.copy()
         discretizers = copy.deepcopy(self.discretizers)
         for node, discretizer in discretizers.items():
             if discretizer.edges_ is None:
-                discretizer.fit(X[node])
+                discretizer.fit(X[node], weights=w)
             X[node] = discretizer.transform(X[node])
         # Use a stable first-class state so tables, joins, and dictionary lookups
         # agree across None, NaN, pandas.NA, and NaT.
@@ -652,9 +663,9 @@ class BayesNet:
         compactors = copy.deepcopy(self.compactors)
         for node, compactor in compactors.items():
             if compactor.frequent_values_ is None:
-                compactor.fit(X[node])
+                compactor.fit(X[node], weights=w)
             else:
-                compactor.partial_fit(X[node])
+                compactor.partial_fit(X[node], weights=w)
             X[node] = compactor.transform(X[node])
         self.compactors = compactors
 
@@ -666,12 +677,12 @@ class BayesNet:
                     self.P[child].index.droplevel(child)
                 )
                 old_counts = self.P[child] * parent_sizes.to_numpy()
-                new_counts = X.groupby(parents + [child], dropna=False, observed=True).size()
+                new_counts = w.groupby([X[v] for v in parents + [child]], dropna=False, observed=True).sum()
                 counts = old_counts.add(new_counts, fill_value=0)
 
             # ... else we compute it from scratch
             else:
-                counts = X.groupby(parents + [child], dropna=False, observed=True).size()
+                counts = w.groupby([X[v] for v in parents + [child]], dropna=False, observed=True).sum()
                 if self.prior_count:
                     combos = itertools.product(
                         *[X[var].unique() for var in parents + [child]]
@@ -692,15 +703,15 @@ class BayesNet:
             # Incremental update
             if root in self.P:
                 old_counts = self.P[root] * self._P_sizes[root]
-                new_counts = X[root].value_counts(dropna=False)
+                new_counts = _root_counts(X[root], w)
                 counts = old_counts.add(new_counts, fill_value=0)
-                self._P_sizes[root] += len(X)
+                self._P_sizes[root] += w.sum()
                 self.P[root] = counts / self._P_sizes[root]
 
             # From scratch
             else:
-                self._P_sizes[root] = len(X)
-                self.P[root] = X[root].value_counts(normalize=True, dropna=False)
+                self._P_sizes[root] = w.sum()
+                self.P[root] = _root_counts(X[root], w) / w.sum()
 
         for node in self.P:
             self.P[node] = self._restore_categories(self.P[node])
@@ -709,8 +720,11 @@ class BayesNet:
         self._junction_sampler.invalidate()
         return self
 
-    def fit(self, X: pd.DataFrame):
-        """Fit configured transformations, then learn conditional tables."""
+    def fit(self, X: pd.DataFrame, weights=None):
+        """Fit configured transformations, then learn conditional tables.
+
+        ``weights`` gives each row's count (see :meth:`partial_fit`).
+        """
         self.P = {}
         self._P_sizes = {}
         for discretizer in self.discretizers.values():
@@ -721,7 +735,7 @@ class BayesNet:
             compactor.n_members_ = None
             compactor.dtype_ = None
             compactor._frequent = None
-        return self.partial_fit(X)
+        return self.partial_fit(X, weights)
 
     def _forward_sample_fast(self) -> typing.Iterator[dict]:
         """Fast forward sampling using precompiled lookups (no likelihood)."""

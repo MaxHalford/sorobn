@@ -133,9 +133,13 @@ class Compactor:
             )
         return series
 
-    def fit(self, values):
-        """Learn which values to retain from a one-dimensional collection."""
+    def fit(self, values, weights=None):
+        """Learn which values to retain. ``weights`` gives each value's count."""
         series = self._as_categorical_series(values)
+        weights = (
+            pd.Series(1.0, index=series.index) if weights is None
+            else pd.Series(np.asarray(weights, dtype=float), index=series.index)
+        )
         missing = np.fromiter(
             (is_null(value) for value in series), dtype=bool, count=len(series)
         )
@@ -146,14 +150,15 @@ class Compactor:
         # ``sort=False`` preserves first appearance. The stable frequency sort
         # consequently gives deterministic behavior for ties without requiring
         # heterogeneous values to be mutually orderable.
-        counts = observed.groupby(observed, sort=False, observed=True).size()
+        counts = weights[~missing].groupby(observed, sort=False, observed=True).sum()
+        counts = counts[counts > 0]
         ranked = counts.sort_values(ascending=False, kind="stable")
 
         if self.max_categories is not None:
             kept = ranked.index[: max(0, self.max_categories - 1)]
         else:
             threshold = (
-                self.min_frequency * len(series)
+                self.min_frequency * weights.sum()
                 if isinstance(self.min_frequency, float)
                 else self.min_frequency
             )
@@ -167,14 +172,14 @@ class Compactor:
         )
         return self
 
-    def partial_fit(self, values):
+    def partial_fit(self, values, weights=None):
         """Fit on the first batch. Later batches change nothing here.
 
         The retained values and ``n_members_`` stay as learned from the first
         batch, so accumulated counts keep a stable meaning.
         """
         if self._frequent is None:
-            return self.fit(values)
+            return self.fit(values, weights)
         return self
 
     def transform_value(self, value):

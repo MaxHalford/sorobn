@@ -474,6 +474,18 @@ If you want to update an already existing Bayesian networks with new observation
 
 For ordinary discrete variables, the same result is obtained whether you use `fit` once or `partial_fit` multiple times. Learned transformations are frozen after the first batch so that accumulated counts retain a stable meaning; the sections below describe this in more detail.
 
+Both methods accept `weights`: a column name, or one count per row. Fitting counts gives the same result as fitting the repeated rows, so a database can send `GROUP BY` results instead of raw rows. Structure learning accepts the same argument: `sorobn.structure.chow_liu(X, weights=...)`.
+
+```python
+>>> edges = [(p, c) for c, parents in bn.parents.items() for p in parents]
+>>> counts = samples.value_counts().rename('n').reset_index()
+>>> by_counts = sorobn.BayesNet(*edges).fit(counts, weights='n')
+>>> by_rows = sorobn.BayesNet(*edges).fit(samples)
+>>> all((by_counts.P[node] - by_rows.P[node]).abs().max() < 1e-12 for node in bn.nodes)
+True
+
+```
+
 ### 🪣 High-cardinality variables
 
 In order to save space, rare categorical values can be grouped into a `sorobn.OTHER` state. This happens before the conditional probability tables are computed. Configure a `Compactor` for each variable where you wish to apply compaction:
