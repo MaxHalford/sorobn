@@ -718,8 +718,7 @@ class BayesNet:
             discretizer.dtype_ = None
         for compactor in self.compactors.values():
             compactor.frequent_values_ = None
-            compactor.infrequent_values_ = None
-            compactor.infrequent_counts_ = None
+            compactor.n_members_ = None
             compactor.dtype_ = None
             compactor._frequent = None
         return self.partial_fit(X)

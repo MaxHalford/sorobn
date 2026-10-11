@@ -50,11 +50,14 @@ class Compactor:
     ``min_frequency`` keeps values occurring at least that many times, or at
     least that fraction of all observations when given a float.
 
-    ``disaggregation`` controls how the probability of ``OTHER`` is assigned
-    when a query addresses original bucket members: ``"uniform"`` gives every
-    member equal weight, ``"empirical"`` uses their observed counts, and
-    ``"dirichlet"`` uses the posterior mean under a symmetric Dirichlet prior
-    with concentration ``alpha`` per member.
+    Only the frequent values and the number of grouped values (``n_members_``)
+    are kept, so memory does not grow with the number of distinct values.
+    Queries on grouped values use heuristics:
+
+    - ``Eq``, ``In``, and ``Ne`` assume every grouped value is equally frequent:
+      each gets ``1 / n_members_`` of ``OTHER``.
+    - Other predicates (patterns, ranges) take their share of ``OTHER`` from
+      the frequent values: ``(matches + 1) / (len(frequent_values_) + 2)``.
 
     Nulls are never grouped: every external null representation becomes the
     explicit :data:`~sorobn.MISSING` state. Frequency ties at a
@@ -68,16 +71,15 @@ class Compactor:
     >>> compactor = Compactor(max_categories=3).fit(["a", "a", "b", "c"])
     >>> compactor.frequent_values_
     ('a', 'b')
+    >>> compactor.n_members_
+    1
     >>> compactor.transform(["a", "c", "new"]).tolist()
     ['a', <OTHER>, <OTHER>]
     >>> compactor.transform_value("new") == OTHER
     True
     """
 
-    def __init__(
-        self, *, max_categories=None, min_frequency=None,
-        disaggregation="uniform", alpha=1.0,
-    ):
+    def __init__(self, *, max_categories=None, min_frequency=None):
         if (max_categories is None) == (min_frequency is None):
             raise ValueError(
                 "Specify exactly one of max_categories or min_frequency"
@@ -101,40 +103,18 @@ class Compactor:
                 raise ValueError(
                     "min_frequency must be a positive integer or a float in (0, 1]"
                 )
-        if disaggregation not in ("uniform", "empirical", "dirichlet"):
-            raise ValueError(
-                "disaggregation must be 'uniform', 'empirical', or 'dirichlet'"
-            )
-        if (
-            not isinstance(alpha, (int, float))
-            or isinstance(alpha, bool)
-            or not np.isfinite(alpha)
-            or alpha <= 0
-        ):
-            raise ValueError("alpha must be a positive finite number")
 
         self.max_categories = max_categories
         self.min_frequency = min_frequency
-        self.disaggregation = disaggregation
-        self.alpha = alpha
         self.frequent_values_ = None
-        self.infrequent_values_ = None
-        self.infrequent_counts_ = None
+        self.n_members_ = None
         self.dtype_ = None
         self._frequent = None
 
     def __repr__(self):
-        limit = (
-            f"max_categories={self.max_categories!r}"
-            if self.max_categories is not None
-            else f"min_frequency={self.min_frequency!r}"
-        )
-        options = [limit]
-        if self.disaggregation != "uniform":
-            options.append(f"disaggregation={self.disaggregation!r}")
-        if self.disaggregation == "dirichlet":
-            options.append(f"alpha={self.alpha!r}")
-        return f"Compactor({', '.join(options)})"
+        if self.max_categories is not None:
+            return f"Compactor(max_categories={self.max_categories!r})"
+        return f"Compactor(min_frequency={self.min_frequency!r})"
 
     @staticmethod
     def _as_categorical_series(values):
@@ -180,13 +160,7 @@ class Compactor:
             kept = ranked[ranked >= threshold].index
 
         self.frequent_values_ = tuple(kept)
-        kept_set = set(kept)
-        self.infrequent_values_ = tuple(
-            value for value in ranked.index if value not in kept_set
-        )
-        self.infrequent_counts_ = {
-            value: int(ranked[value]) for value in self.infrequent_values_
-        }
+        self.n_members_ = len(ranked) - len(kept)
         self._frequent = set(self.frequent_values_)
         self.dtype_ = pd.CategoricalDtype(
             categories=[*self.frequent_values_, OTHER, MISSING], ordered=False
@@ -194,26 +168,13 @@ class Compactor:
         return self
 
     def partial_fit(self, values):
-        """Update bucket counts without changing the retained categories."""
+        """Fit on the first batch. Later batches change nothing here.
+
+        The retained values and ``n_members_`` stay as learned from the first
+        batch, so accumulated counts keep a stable meaning.
+        """
         if self._frequent is None:
             return self.fit(values)
-        series = self._as_categorical_series(values)
-        missing = np.fromiter(
-            (is_null(value) for value in series), dtype=bool, count=len(series)
-        )
-        observed = series[~missing]
-        counts = observed.groupby(observed, sort=False, observed=True).size()
-        additions = []
-        for value, count in counts.items():
-            if isinstance(value, _Other):
-                raise ValueError("OTHER is reserved and cannot occur in training data")
-            if value in self._frequent:
-                continue
-            if value not in self.infrequent_counts_:
-                additions.append(value)
-                self.infrequent_counts_[value] = 0
-            self.infrequent_counts_[value] += int(count)
-        self.infrequent_values_ += tuple(additions)
         return self
 
     def transform_value(self, value):
@@ -257,35 +218,48 @@ class Compactor:
             return self._references_other(predicate.predicate)
         return False
 
+    def _point_share(self, predicate):
+        """Share of OTHER matched by Eq, In, or Ne, or None for other predicates.
+
+        Each non-null value outside the frequent ones counts as one member.
+        OTHER has at least one member: values first seen by partial_fit land there.
+        """
+        if isinstance(predicate, Ne):
+            return 1 - self._point_share(Eq(predicate.value))
+        if isinstance(predicate, _Negated) and isinstance(predicate.predicate, (Eq, In)):
+            return 1 - self._point_share(predicate.predicate)
+        if isinstance(predicate, Eq):
+            values = (predicate.value,)
+        elif isinstance(predicate, In):
+            values = predicate.values
+        else:
+            return None
+
+        n = max(self.n_members_, 1)
+        members = {v for v in values if not is_null(v) and v not in self._frequent}
+        return min(len(members), n) / n
+
+    def _bucket_share(self, predicate):
+        """Share of OTHER selected by a predicate that does not name OTHER.
+
+        e.g. with frequent values ('Paris', 'London'), Glob('L*') matches one
+        of two, so it selects (1 + 1) / (2 + 2) = 0.5 of OTHER.
+        """
+        point = self._point_share(predicate)
+        if point is not None:
+            return point
+        matches = sum(bool(predicate(value)) for value in self.frequent_values_)
+        return (matches + 1) / (len(self.frequent_values_) + 2)
+
     def weights(self, predicate, states):
-        """Return whether each grouped state is selected by a predicate.
+        """Return how much of each grouped state a predicate selects.
 
         A predicate that explicitly references ``OTHER`` operates on the
-        aggregate state. Otherwise, each known bucket member matched by the
-        predicate contributes according to the configured disaggregation rule.
+        aggregate state. Otherwise ``OTHER`` gets a heuristic share (see the
+        class docstring).
         """
         predicate = as_predicate(predicate)
         references_other = self._references_other(predicate)
-        matched = [
-            value for value in self.infrequent_values_ if predicate(value)
-        ]
-        if not matched:
-            bucket_weight = 0.0
-        elif self.disaggregation == "uniform":
-            bucket_weight = len(matched) / len(self.infrequent_values_)
-        elif self.disaggregation == "empirical":
-            bucket_weight = (
-                sum(self.infrequent_counts_[value] for value in matched)
-                / sum(self.infrequent_counts_.values())
-            )
-        else:
-            bucket_weight = (
-                sum(self.infrequent_counts_[value] + self.alpha for value in matched)
-                / (
-                    sum(self.infrequent_counts_.values())
-                    + self.alpha * len(self.infrequent_values_)
-                )
-            )
         weights = []
         for state in states:
             if not isinstance(state, _Other):
@@ -293,5 +267,5 @@ class Compactor:
             elif references_other:
                 weights.append(float(predicate(OTHER)))
             else:
-                weights.append(bucket_weight)
+                weights.append(self._bucket_share(predicate))
         return np.asarray(weights)
