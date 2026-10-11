@@ -155,7 +155,7 @@ def _compile_conditional(cond, conditioning_vars, rng):
     seed = rng.randint(1, 2**16)
     if not conditioning_vars:
         values = cond.index.tolist()
-        sampler = vose.Sampler(weights=cond.to_numpy(dtype=float), seed=seed)
+        sampler = vose.Sampler(weights=cond.to_numpy(dtype=float, copy=True), seed=seed)
         return {(): (values, sampler)}
 
     lookup = {}
@@ -171,13 +171,13 @@ def _compile_conditional(cond, conditioning_vars, rng):
             drop = list(range(n_cond)) if n_cond > 1 else 0
             vals_idx = group.index.droplevel(drop)
             values = vals_idx.tolist()
-            weights = group.to_numpy(dtype=float)
+            weights = group.to_numpy(dtype=float, copy=True)
             sampler = vose.Sampler(weights=weights, seed=seed)
             lookup[_condition_key(key)] = (values, sampler)
     else:
         # Single-level index with conditioning — shouldn't normally happen
         values = cond.index.tolist()
-        sampler = vose.Sampler(weights=cond.to_numpy(dtype=float), seed=seed)
+        sampler = vose.Sampler(weights=cond.to_numpy(dtype=float, copy=True), seed=seed)
         lookup[()] = (values, sampler)
 
     return lookup

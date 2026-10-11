@@ -100,8 +100,9 @@ class CDTAccessor:
 
         """
         if self.sampler is None:
+            # vose needs a writable buffer; pandas 3 may return a read-only view.
             self.sampler = vose.Sampler(
-                weights=self.series.to_numpy(dtype=float),
+                weights=self.series.to_numpy(dtype=float, copy=True),
                 seed=rng.randint(1, 2**16),
             )
         idx = self.sampler.sample()
@@ -1076,8 +1077,9 @@ class BayesNet:
             posteriors[node] = post
             boundaries[node] = boundary
 
-        # Start with a random sample
-        state = self.sample(init=given)
+        # Start with a random sample. A dict, because pandas 3 would give a Series
+        # of strings a str dtype that rejects MISSING.
+        state = dict(self.sample(init=given))
 
         samples = {var: [None] * n_iterations for var in variables}
         cycle = itertools.cycle(unobserved)  # arbitrary order, it doesn't matter
