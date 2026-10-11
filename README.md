@@ -500,13 +500,17 @@ Name: P(city), dtype: float64
 
 ```
 
-`max_categories` includes `OTHER`, so the example retains the two most frequent values and uses its third state for everything else. Frequency ties are resolved by first appearance. Alternatively, keep the most frequent values until they cover a share of the non-null observations. Set both to reach the coverage, but never exceed `max_categories`:
+`max_categories` includes `OTHER`, so the example retains the two most frequent values and uses its third state for everything else. Frequency ties are resolved by first appearance. Values are kept from most to least frequent until a limit is reached. There are three limits, and any combination of them can be set:
 
 ```python
->>> sorobn.Compactor(coverage=0.9)  # OTHER holds at most 10% of rows
+>>> sorobn.Compactor(max_categories=100)  # At most 100 states, OTHER included
+Compactor(max_categories=100)
+>>> sorobn.Compactor(coverage=0.9)  # Stop once 90% of rows are covered: OTHER holds at most 10%
 Compactor(coverage=0.9)
->>> sorobn.Compactor(coverage=0.9, max_categories=100)  # Same, capped at 100 states
-Compactor(max_categories=100, coverage=0.9)
+>>> sorobn.Compactor(min_frequency=10)  # Never keep a value seen fewer than 10 times
+Compactor(min_frequency=10)
+>>> sorobn.Compactor(max_categories=100, coverage=0.9, min_frequency=0.001)  # The first limit reached wins
+Compactor(max_categories=100, coverage=0.9, min_frequency=0.001)
 
 ```
 

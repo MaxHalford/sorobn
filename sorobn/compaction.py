@@ -45,11 +45,16 @@ def _get_other():
 class Compactor:
     """Group infrequent non-null values into :data:`OTHER`.
 
-    ``coverage`` keeps the most frequent values until they cover that share of
-    the non-null observations: with ``coverage=0.9``, ``OTHER`` holds at most
-    10% of them. ``max_categories`` is a hard cap on the number of non-null
-    model states, including ``OTHER``: the most frequent values are kept first.
-    Set either, or both to reach the coverage but never exceed the cap.
+    Values are kept from most to least frequent, until one of these limits:
+
+    - ``max_categories``: a hard cap on the number of non-null model states,
+      including ``OTHER``.
+    - ``coverage``: the kept values cover that share of the non-null
+      observations. With ``coverage=0.9``, ``OTHER`` holds at most 10% of them.
+    - ``min_frequency``: values occurring fewer times, or covering a smaller
+      share of the non-null observations when given a float, are never kept.
+
+    Set any combination of them. The first limit reached stops the selection.
 
     Only the frequent values and the number of grouped values (``n_members_``)
     are kept, so memory does not grow with the number of distinct values.
@@ -80,9 +85,9 @@ class Compactor:
     True
     """
 
-    def __init__(self, *, max_categories=None, coverage=None):
-        if max_categories is None and coverage is None:
-            raise ValueError("Specify max_categories, coverage, or both")
+    def __init__(self, *, max_categories=None, coverage=None, min_frequency=None):
+        if max_categories is None and coverage is None and min_frequency is None:
+            raise ValueError("Specify max_categories, coverage, or min_frequency")
         if max_categories is not None and (
             not isinstance(max_categories, int)
             or isinstance(max_categories, bool)
@@ -95,9 +100,23 @@ class Compactor:
             or not 0 < coverage <= 1
         ):
             raise ValueError("coverage must be a number in (0, 1]")
+        if min_frequency is not None:
+            valid_count = (
+                isinstance(min_frequency, int)
+                and not isinstance(min_frequency, bool)
+                and min_frequency >= 1
+            )
+            valid_fraction = (
+                isinstance(min_frequency, float) and 0 < min_frequency <= 1
+            )
+            if not (valid_count or valid_fraction):
+                raise ValueError(
+                    "min_frequency must be a positive integer or a float in (0, 1]"
+                )
 
         self.max_categories = max_categories
         self.coverage = coverage
+        self.min_frequency = min_frequency
         self.frequent_values_ = None
         self.n_members_ = None
         self.dtype_ = None
@@ -109,6 +128,8 @@ class Compactor:
             options.append(f"max_categories={self.max_categories!r}")
         if self.coverage is not None:
             options.append(f"coverage={self.coverage!r}")
+        if self.min_frequency is not None:
+            options.append(f"min_frequency={self.min_frequency!r}")
         return f"Compactor({', '.join(options)})"
 
     @staticmethod
@@ -144,14 +165,22 @@ class Compactor:
         counts = observed.groupby(observed, sort=False, observed=True).size()
         ranked = counts.sort_values(ascending=False, kind="stable")
 
-        kept = ranked.index
-        if self.coverage is not None:
-            # Keep values until the cumulative share reaches the coverage,
-            # including the value that crosses it.
-            share = ranked.cumsum() / ranked.sum() if len(ranked) else ranked
-            kept = ranked.index[: int((share < self.coverage).sum()) + 1]
+        # Each limit keeps a prefix of the ranked values: keep the shortest.
+        n = len(ranked)
         if self.max_categories is not None:
-            kept = kept[: max(0, self.max_categories - 1)]
+            n = min(n, max(0, self.max_categories - 1))
+        if self.coverage is not None:
+            # Include the value that brings the cumulative share to the coverage.
+            share = ranked.cumsum() / ranked.sum()
+            n = min(n, int((share < self.coverage).sum()) + 1)
+        if self.min_frequency is not None:
+            threshold = (
+                self.min_frequency * ranked.sum()
+                if isinstance(self.min_frequency, float)
+                else self.min_frequency
+            )
+            n = min(n, int((ranked >= threshold).sum()))
+        kept = ranked.index[:n]
 
         self.frequent_values_ = tuple(kept)
         self.n_members_ = len(ranked) - len(kept)

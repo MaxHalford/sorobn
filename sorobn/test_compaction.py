@@ -163,6 +163,9 @@ def test_grouped_samples_use_the_fitted_categorical_dtype():
     {},
     {"max_categories": 0},
     {"max_categories": True},
+    {"min_frequency": 0},
+    {"min_frequency": 1.1},
+    {"min_frequency": True},
     {"coverage": 0},
     {"coverage": 1.1},
     {"coverage": True},
@@ -216,3 +219,28 @@ def test_max_categories_caps_coverage():
     loose = sorobn.Compactor(coverage=0.9, max_categories=10).fit(values)
     assert loose.frequent_values_ == ("a", "b", "c")
     assert repr(capped) == "Compactor(max_categories=3, coverage=0.9)"
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected",
+    [
+        # Counts: a 50, b 30, c 10, d 6, e 4. Shares of 100 rows.
+        ({"min_frequency": 6}, ("a", "b", "c", "d")),
+        ({"min_frequency": 0.1}, ("a", "b", "c")),
+        ({"min_frequency": 6, "coverage": 0.9}, ("a", "b", "c")),
+        ({"min_frequency": 6, "max_categories": 3}, ("a", "b")),
+        ({"min_frequency": 20, "coverage": 0.9, "max_categories": 10}, ("a", "b")),
+        ({"min_frequency": 1, "coverage": 0.9, "max_categories": 3}, ("a", "b")),
+    ],
+)
+def test_limits_interact_by_keeping_the_shortest_prefix(kwargs, expected):
+    values = ["a"] * 50 + ["b"] * 30 + ["c"] * 10 + ["d"] * 6 + ["e"] * 4
+    compactor = sorobn.Compactor(**kwargs).fit(values)
+    assert compactor.frequent_values_ == expected
+    assert compactor.n_members_ == 5 - len(expected)
+
+
+def test_min_frequency_repr():
+    assert repr(sorobn.Compactor(max_categories=10, coverage=0.9, min_frequency=5)) == (
+        "Compactor(max_categories=10, coverage=0.9, min_frequency=5)"
+    )
