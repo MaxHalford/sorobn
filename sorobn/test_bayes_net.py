@@ -23,8 +23,8 @@ def check_partial_fit(bn):
 
     # Fit the parameters of the second BN incrementally
     bn_partial.P = {}
-    for chunk in np.array_split(samples, 5):
-        bn_partial.partial_fit(chunk)
+    for rows in np.array_split(np.arange(len(samples)), 5):
+        bn_partial.partial_fit(samples.iloc[rows])
 
     # Check that the obtained parameters are identical
     for node in bn.P:

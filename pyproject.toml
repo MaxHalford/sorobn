@@ -9,7 +9,7 @@ authors = [
 license = "MIT"
 requires-python = ">=3.13"
 dependencies = [
-    "pandas>=2.3.3",
+    "pandas>=3.0",
     "vose>=0.2.5",
 ]
 
