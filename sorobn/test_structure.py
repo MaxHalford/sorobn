@@ -82,3 +82,13 @@ def test_structure_learning_validates_data_and_root():
         sorobn.structure.chow_liu(data.iloc[:0])
     with pytest.raises(ValueError, match="unique"):
         sorobn.structure.chow_liu(data.rename(columns={"B": "A"}))
+
+
+def test_chow_liu_compacted_numbers_with_missing():
+    """Compacted numeric columns mix numbers with OTHER and MISSING."""
+    a = pd.Series([1, 2, 3, 3, None] * 4).astype("category")
+    X = pd.DataFrame({
+        "a": sorobn.Compactor(max_categories=2).fit_transform(a),
+        "b": ["x", "y", "x", "y", "x"] * 4,
+    })
+    assert len(sorobn.structure.chow_liu(X)) == 1

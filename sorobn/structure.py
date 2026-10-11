@@ -84,7 +84,7 @@ def chow_liu(X, root=None):
             u,
             v,
             mutual_info(
-                puv=X.groupby([u, v], dropna=False, observed=True).size() / len(X),
+                puv=X.groupby([u, v], dropna=False, observed=True, sort=False).size() / len(X),
                 pu=marginals[u], pv=marginals[v],
             ),
         )
