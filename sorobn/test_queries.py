@@ -379,3 +379,38 @@ def test_null_mask_matches_is_null(values, expected):
     from sorobn.predicates import is_null, null_mask
     assert null_mask(values).tolist() == expected
     assert [is_null(v) for v in values] == expected
+
+
+def test_expectation_of_a_product(cities):
+    city = {"Paris": 2.0, "Parma": 1.0, "London": 0.0}
+    bought = {True: 1.0, False: 3.0}
+    joint = cities.full_joint_dist()
+    expected = sum(
+        p * city[c] * bought[b] for (c, b), p in joint.items()
+    )
+    assert cities.expectation({"City": city, "Purchased": bought}) == pytest.approx(expected)
+    # Callables and Series work too.
+    assert cities.expectation(
+        {"City": city.get, "Purchased": pd.Series(bought)}
+    ) == pytest.approx(expected)
+
+
+def test_expectation_given_evidence(cities):
+    city = {"Paris": 2.0, "Parma": 1.0, "London": 0.0}
+    assert cities.expectation(
+        {"City": city}, given={"City": sb.Glob("Par*")}
+    ) == pytest.approx((0.6 * 2 + 0.1 * 1) / 0.7)
+    assert cities.expectation(
+        {"Purchased": {True: 10.0, False: 0.0}}, given={"City": "Paris"}
+    ) == pytest.approx(8.0)
+    # An empty product is 1.
+    assert cities.expectation({}, given={"City": "Paris"}) == pytest.approx(1.0)
+
+
+def test_expectation_validation(cities):
+    with pytest.raises(ValueError, match="non-negative"):
+        cities.expectation({"Purchased": {True: -1.0, False: 1.0}})
+    with pytest.raises(ValueError, match="Unknown"):
+        cities.expectation({"Nope": {True: 1.0}})
+    with pytest.raises(ValueError, match="zero probability"):
+        cities.expectation({"Purchased": {True: 1.0, False: 1.0}}, given={"City": "Rome"})

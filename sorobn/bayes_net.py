@@ -1126,13 +1126,16 @@ class BayesNet:
             raise ValueError("Cannot condition on evidence with zero probability")
         return posterior / total
 
-    def _event_distribution(self, variables, event):
+    def _event_distribution(self, variables, event, values=None):
         """Unnormalized marginal with one likelihood factor per observed variable.
 
         Eliminating every variable returns P(event), without constructing a full
         joint table. A partially observed variable remains latent until summed out.
+        ``values`` maps variables to per-state weights, multiplied into their
+        likelihood: eliminating every variable then returns E[Π values · 1(event)].
         """
-        unknown = (set(variables) | set(event)) - set(self.P)
+        values = {} if values is None else values
+        unknown = (set(variables) | set(event) | set(values)) - set(self.P)
         if unknown:
             raise ValueError(f"Unknown or unfitted variables: {sorted(unknown)}")
 
@@ -1145,7 +1148,7 @@ class BayesNet:
             )
             return pd.Series([], index=index, dtype=float)
 
-        relevant = set(variables) | set(event)
+        relevant = set(variables) | set(event) | set(values)
         for node in list(relevant):
             relevant |= self.ancestors(node)
 
@@ -1154,12 +1157,17 @@ class BayesNet:
             states = self.P[node].index.get_level_values(node).unique()
             predicate = _as_event_predicate(value)
             if node in self.discretizers:
-                values = self.discretizers[node].weights(predicate, states)
+                likelihood = self.discretizers[node].weights(predicate, states)
             elif node in self.compactors:
-                values = self.compactors[node].weights(predicate, states)
+                likelihood = self.compactors[node].weights(predicate, states)
             else:
-                values = [float(predicate(state)) for state in states]
-            weights[node] = pd.Series(values, index=states)
+                likelihood = [float(predicate(state)) for state in states]
+            weights[node] = pd.Series(likelihood, index=states)
+
+        for node, value in values.items():
+            states = self.P[node].index.get_level_values(node).unique()
+            weight = pd.Series([float(value(state)) for state in states], index=states)
+            weights[node] = weights[node] * weight if node in weights else weight
 
         factors = []
         for node in sorted(relevant):
@@ -1236,6 +1244,42 @@ class BayesNet:
                 if node in given else predicate
             )
         return float(self._event_distribution((), combined) / denominator)
+
+    def expectation(self, values: dict, *, given: dict = None) -> float:
+        """Return E[Π f(X) | given], using exact inference in the discrete model.
+
+        ``values`` maps each variable X to f, given per model state: a dict, a
+        Series, or a callable. States missing from a dict or a Series weigh 0.
+        Weights must be non-negative.
+
+        Examples
+        --------
+
+        >>> import sorobn
+
+        >>> bn = sorobn.examples.sprinkler()
+        >>> bn.expectation({'Rain': {True: 10, False: 0}}, given={'Cloudy': True})
+        8.0
+
+        """
+        given = {} if given is None else given
+        functions = {}
+        for node, value in values.items():
+            if isinstance(value, (dict, pd.Series)):
+                value = (lambda mapping: lambda state: mapping.get(state, 0.0))(value)
+            functions[node] = value
+        unknown = set(functions) - set(self.P)
+        if unknown:
+            raise ValueError(f"Unknown or unfitted variables: {sorted(unknown)}")
+        for node, f in functions.items():
+            states = self.P[node].index.get_level_values(node).unique()
+            if any(f(state) < 0 for state in states):
+                raise ValueError(f"Weights of {node!r} must be non-negative")
+
+        denominator = self._event_distribution((), given)
+        if denominator <= 0:
+            raise ValueError("Cannot condition on evidence with zero probability")
+        return float(self._event_distribution((), given, functions) / denominator)
 
     def distribution(
         self,
