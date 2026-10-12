@@ -339,7 +339,13 @@ Name: P(year), dtype: float64
 >>> len(movies) * movie_bn.probability({'title': sorobn.Like('Star%')})
 2.0
 
+# Expectation of a function of the model states: E[year | title LIKE 'Star%'].
+>>> movie_bn.expectation({'year': lambda year: year}, given={'title': sorobn.Like('Star%')})
+1993.0
+
 ```
+
+`expectation(values, given=...)` returns E[Π f(X) | given], where `values` maps each variable to a non-negative function of its states: a dict, a `pd.Series`, or a callable. For instance, with a column that counts the matching rows of another table, it estimates join sizes.
 
 | Predicate | Meaning |
 | --- | --- |
